@@ -475,7 +475,7 @@ class Gui:
         self.menubar_config(cursor='watch')
         self.main_config(cursor='watch')
         if hasattr(self,'remove_duplicates_button'):
-            self.update_remove_duplicates_button_state()
+            self.update_groups_toolbar_button_state()
 
     def processing_on(self):
         self.block_processing_stack_pop()
@@ -489,7 +489,7 @@ class Gui:
             self.main_config(cursor='')
             self.menubar_config(cursor='')
             if hasattr(self,'remove_duplicates_button'):
-                self.update_remove_duplicates_button_state()
+                self.update_groups_toolbar_button_state()
 
     #####################################################
     def block_and_log(func):
@@ -967,6 +967,22 @@ class Gui:
         self.widget_tooltip(
             self.remove_duplicates_button,
             STR('TOOLTIP_REMOVE_DUPLICATES'),
+        )
+        self.mark_one_per_group_button = TkButton(
+            self.groups_toolbar,
+            text=STR('Mark one per group'),
+            command=self.mark_one_per_group_button_wrapper,
+            state='disabled',
+            relief='raised',
+            padx=12,
+            pady=4,
+            bg=bg_color,
+            activebackground=bg_color,
+        )
+        self.mark_one_per_group_button.pack(side='left',padx=6,pady=4)
+        self.widget_tooltip(
+            self.mark_one_per_group_button,
+            STR('TOOLTIP_MARK_ONE_PER_GROUP'),
         )
 
         frame_folder = Frame(self.paned,bg=bg_color)
@@ -1737,7 +1753,7 @@ class Gui:
         self.main_update()
 
         self.scan_dialog_show(run_scan_condition)
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
         self_groups_tree.focus_set()
 
@@ -1897,7 +1913,7 @@ class Gui:
 
         self.processing_on()
         if hasattr(self,'remove_duplicates_button'):
-            self.update_remove_duplicates_button_state()
+            self.update_groups_toolbar_button_state()
 
     def pre_show_settings(self,on_main_window_dialog=True,new_widget=None):
         _ = {var.set(self.cfg_get_bool(key)) for var,key in self.settings}
@@ -4189,7 +4205,7 @@ class Gui:
             return
 
         self.scanning_in_progress=True
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
         try:
             if self.scan():
@@ -4199,12 +4215,12 @@ class Gui:
             self.status(str(e))
 
         self.scanning_in_progress=False
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
     def scan_dialog_hide_wrapper(self):
         self.scan_dialog.hide()
         self.groups_tree.focus_set()
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
     def scan_update_info_path_nr(self):
         self.update_scan_path_nr=True
@@ -5302,7 +5318,7 @@ class Gui:
 
         self.initial_focus()
         self.calc_mark_stats_groups()
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
         #self.menu_enable()
         self_status('')
@@ -5561,15 +5577,40 @@ class Gui:
                 if in_tagged:
                     self_current_folder_items_tagged_add(item)
 
-    def update_remove_duplicates_button_state(self):
-        enabled = bool(self.tagged) and not self.scanning_in_progress and self.processing_is_idle()
-        state = 'normal' if enabled else 'disabled'
-        self.remove_duplicates_button.config(state=state)
+    def update_groups_toolbar_button_state(self):
+        has_groups = bool(self.tree_children[self.groups_tree])
+        idle = self.processing_is_idle()
+        scanning = self.scanning_in_progress
+        remove_enabled = bool(self.tagged) and not scanning and idle
+        mark_one_enabled = has_groups and not scanning and idle
+        remove_state = 'normal' if remove_enabled else 'disabled'
+        mark_one_state = 'normal' if mark_one_enabled else 'disabled'
+        self.remove_duplicates_button.config(state=remove_state)
+        self.mark_one_per_group_button.config(state=mark_one_state)
         self.remove_duplicates_button.update_idletasks()
+        self.mark_one_per_group_button.update_idletasks()
         logging.debug(
-            'remove_duplicates_button state=%s marked=%s scanning=%s idle=%s stack=%s',
-            state, len(self.tagged), self.scanning_in_progress, self.processing_is_idle(), self.block_processing_stack,
+            'groups_toolbar remove=%s mark_one=%s groups=%s marked=%s scanning=%s idle=%s stack=%s',
+            remove_state, mark_one_state, has_groups, len(self.tagged), scanning, idle, self.block_processing_stack,
         )
+
+    def mark_one_per_group_button_wrapper(self):
+        l_info(
+            'Mark one per group clicked: groups=%s idle=%s stack=%s',
+            len(self.tree_children[self.groups_tree]), self.processing_is_idle(), self.block_processing_stack,
+        )
+        if not self.processing_is_idle():
+            l_warning('Mark one per group ignored: processing in progress')
+            return
+        if not self.tree_children[self.groups_tree]:
+            l_warning('Mark one per group ignored: no duplicate groups')
+            self.get_info_dialog_on_main().show(
+                STR('No duplicate groups'),
+                STR('Run a scan first. No duplicate groups are shown.'),
+            )
+            return
+        self.mark_on_all(self.unset_mark)
+        self.mark_all_by_ctime('oldest', self.set_mark)
 
     def remove_duplicates_button_wrapper(self):
         l_info(
@@ -5593,7 +5634,7 @@ class Gui:
         self.status_all_quant_configure(text=fnumber(len(self_tagged)))
         self_iid_to_size=self.iid_to_size
         self.status_all_size_configure(text=bytes_to_str(sum([self_iid_to_size[iid] for iid in self_tagged])))
-        self.update_remove_duplicates_button_state()
+        self.update_groups_toolbar_button_state()
 
     def calc_mark_stats_folder(self):
         self_current_folder_items_tagged = self.current_folder_items_tagged
