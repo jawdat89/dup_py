@@ -30,12 +30,12 @@ VSVersionInfo(
       StringTable(
         u'040904b0',
         [StringStruct(u'CompanyName', u'https://github.com/PJDude/dude'),
-        StringStruct(u'FileDescription', u'Dude'),
+        StringStruct(u'FileDescription', u'Dup_py CLI'),
         StringStruct(u'FileVersion', u'0.0.0.0'),
-        StringStruct(u'InternalName', u'Dude'),
+        StringStruct(u'InternalName', u'dup_py_cmd'),
         StringStruct(u'LegalCopyright', u'Piotr Jochymek 2022-2025'),
-        StringStruct(u'OriginalFilename', u'dude.exe'),
-        StringStruct(u'ProductName', u'Dude'),
+        StringStruct(u'OriginalFilename', u'dup_py_cmd.exe'),
+        StringStruct(u'ProductName', u'Dup_py-cmd'),
         StringStruct(u'ProductVersion', u'VER_TO_REPLACE')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

@@ -1,10 +1,12 @@
-# <img src="./src/icons/dude.png" width=30> DUDE (DUplicates DEtector)
+# <img src="./src/icons/dude.png" width=30> Dup_py
+
+> **Local install (`C:\Dev`):** fork of [DUDE (DUplicates DEtector)](https://github.com/PJDude/dude), renamed **Dup_py**. See [doc/](doc/README.md) — [install](doc/install.md) (`run-dup_py64.bat`, logging), [architecture](doc/architecture.md), [codebase map](doc/codebase-map.md), [known limitations](doc/known-limitations.md).
 
 A cross-platform GUI utility for finding duplicated files, delete or link them to save space.
 
 ## Features:
 - Scanning for duplicate files in **multiple designated folders** (up to 8). Optional **"Cross paths"** display mode
-- Optional **command line parameters** to start scanning immediately or integrate **Dude** with your favorite file manager
+- Optional **command line parameters** to start scanning immediately or integrate **Dup_py** with your favorite file manager
 - Two **synchronized** panels:
   - groups of duplicates
   - directory of selected file
@@ -51,7 +53,7 @@ Portable executable packages created with [PyInstaller](https://pyinstaller.org/
 - Use keyboard shortcuts. All are described in the context menus of the main panels. As a general rule, actions with **Ctrl** key apply to all files/groups, without **Ctrl** work locally. Start by utilizing just **Tab**, **arrows**, **F5**, **space**, and **Delete**.
 - Sometimes it is more efficient to operate on entire folders than on CRC groups, so don't ignore lower panel, use **Tab** and **F5** (**F6**)
 - Narrow down the scanning area, exclude from scanning unnecessary folders (e.g. Windows system folder which is full of duplicates), you can always add multiple (up to 8) independent scan paths
-- Modify on your **PATH** environmental variable to to point to the **Dude** binary for more convenient and faster command line operation
+- Modify on your **PATH** environmental variable to to point to the **Dup_py** binary for more convenient and faster command line operation
 - The performance of the scanning process (or of any other software that requires frequent or extensive access to files in general) may be degraded by the **atime** attribute of the scanned file system. Disabling it on Linux file systems may be done usually by applying the **noatime** attribute in **fstab**, on Windows/NTFS it is the **disablelastaccess** option available with the **fsutil** command or by modifying the registry.
 
 ## Supported platforms:
@@ -70,7 +72,7 @@ dude c:\order d:\mess
 * Generate csv with report, exclude some paths:
 ```
 dude ~ --exclude "*.git/*" --csv result.csv ; note the quotation marks on asterisks
-dude.exe c:\ --exclude *windows* --csv result.csv
+dup_py.exe c:\ --exclude *windows* --csv result.csv
 ```
 * check full set of available parameters:
 ```
@@ -80,19 +82,19 @@ dude --help
 [Reference to potential problems with Windows Defender and other antivirus programs](https://github.com/PJDude/dude/discussions/9).
 
 ## Portability
-**Dude** writes log files, configuration and cache files in runtime. Default location for these files is **dude.data** folder, created next to the **dude executable** file. If there are no write access rights to such folder, platform-specific folders are used for cache, settings and logs (provided by **appdirs** module). You can use --appdirs command line switch to force that behavior even when **dude.data** is accessible.
+**Dup_py** writes log files, configuration and cache files in runtime. Default location for these files is **dup_py.data** folder, created next to the executable. If there are no write access rights to such folder, platform-specific folders are used for cache, settings and logs (provided by **appdirs** module). You can use --appdirs command line switch to force that behavior even when **dup_py.data** is accessible.
 
-## Dude is BIG 💥
+## Dup_py is BIG 💥
 Well, unfortunately, the 2.x version has much larger distribution package than v1. This is mainly because necessity of importing [NumPy](https://numpy.org/) and [SciPy](https://scipy.org/) packages for image hashing and clustering. I apologize for the inconvenience.
 
 ## Technical information
-- Scanning process analyzes selected paths and groups files with the same size. **Dude** compare files by calculated **SHA1** hash of file content. CRC calculation is done in separate threads for every identified device (drive). Number of active threads is limited by available CPU cores. Aborting of CRC calculation gives only partial results - not all files may be identified as duplicates. Restarted scanning process will use cached data. The CRC is always calculated based on the entire contents of the file.
+- Scanning process analyzes selected paths and groups files with the same size. **Dup_py** compare files by calculated **SHA1** hash of file content. CRC calculation is done in separate threads for every identified device (drive). Number of active threads is limited by available CPU cores. Aborting of CRC calculation gives only partial results - not all files may be identified as duplicates. Restarted scanning process will use cached data. The CRC is always calculated based on the entire contents of the file.
 - scanning (CRC calculation to be precise) is done in **specific order**, that try to identify duplicates in folders with biggest potential duplicates. In case of huge filesystems, when scan is aborted, partial results are more useful then.
 - Calculated CRC is stored in **internal cache** which allows re-use it in future operation and speedup of searching of duplicates (e.g. with different set of search paths). Key of cache database is pair of inode of file and file modification time stored separately for every device-id, so any file modification or displacement will result in invalidation of obsolete data and recalculation of CRC.
 - Scanning or marking files does not cause any filesystem change. Any file deletion or linking needs confirmation and is logged.
 - Just before files processing, state of files (ctime) is compared with stored data. In case of inconsistency (state of files was changed somehow during operation between scanning/CRC calculation and files processing) action is aborted and data invalidated.
-- **Dude** is written in **python3** with **Tkinter** and packed with [PyInstaller](https://pyinstaller.org/en/stable) to portable distribution. GitHub release build for linux platform is done in **ubuntu-22.04** container. In case of **glibc** incompatibility it is always possible to build Your own binary (**pyinstaller.run.sh**) or run python script (**dude.py**)
-- **Dude** for **windows** is build as two binary executables: **dude.exe** and **dudecmd.exe**. They should be saved in the same path. **dudecmd.exe** is basically only to respond to the console to --help parameter or for passing command line parameters (if correct) to **dude.exe**. **dude.exe** will also accept parameters but will not respond to the console. **dudecmd.exe** will leave windows command line window open for time of operation.
+- **Dup_py** is written in **python3** with **Tkinter** and packed with [PyInstaller](https://pyinstaller.org/en/stable) to portable distribution. GitHub release build for linux platform is done in **ubuntu-22.04** container. In case of **glibc** incompatibility it is always possible to build Your own binary (**pyinstaller.run.sh**) or run python script (**dup_py.py**)
+- **Dup_py** for **windows** is built as two executables: **dup_py.exe** (GUI) and **dup_py_cmd.exe** (console wrapper for `--help` and forwarding args). They should be in the same folder. **dup_py_cmd.exe** keeps the console open while **dup_py.exe** runs.
 
 - ***Soft links*** to **directories** are skipped during the scanning process. ***Soft links*** to **files** are ignored during scanning. Both appear in the bottom "folders" pane.
 - ***Hard links*** (files with stat.st_nlink>1) currently are ignored during the scanning process and will not be identified as duplicates (within the same inode obviously, as with other inodes). No action can be performed on them. They will only appear in the bottom "folders" pane. This may change in the future versions.
@@ -119,7 +121,7 @@ pip install -r requirements.txt
 ./scripts/icons.convert.sh
 ./scripts/version.gen.sh
 
-python ./src/dude.py
+python ./src/dup_py.py
 ```
 
 ## Licensing

@@ -105,6 +105,22 @@ def str_to_bytes(string):
     except:
         return -1
 
+_IO_READ_CHUNK = 1024 * 1024
+
+def _load_zstd_pickle_file(path, log=None):
+    """Load a zstd-compressed pickle without reading the whole compressed file at once."""
+    from pickle import Unpickler
+
+    try:
+        with open(path, 'rb') as dat_file:
+            dctx = ZstdDecompressor()
+            with dctx.stream_reader(dat_file, read_size=_IO_READ_CHUNK) as reader:
+                return Unpickler(reader).load()
+    except MemoryError as e:
+        if log:
+            log.error('cache too large to load into RAM: %s (%s)', path, e)
+        raise
+
 def fnumber(num):
     return str(format(num,',d').replace(',',' '))
 
@@ -133,8 +149,7 @@ class CRCThreadedCalc:
     def calc(self):
         from hashlib import sha1
 
-        size_threshold=8*1024*1024
-        block_size=1*1024*1024
+        block_size=_IO_READ_CHUNK
 
         self.started=True
 
@@ -149,38 +164,27 @@ class CRCThreadedCalc:
             try:
                 file_handle=open(fullpath,'rb')
             except Exception as e:
-                self.log.error(e)
+                self.log.error('CRC open failed: %s (%s)', fullpath, e)
 
                 if self.abort_action:
                     sys_exit()
             else:
-                if size<size_threshold:
-                    self_data_dict[(size,fullpath)]=(pathnr,path,file_name,mtime,ctime,inode,sha1(file_handle.read()).hexdigest())
-                    file_handle.close()
-
+                hasher = sha1()
+                hasher_update=hasher.update
+                file_handle_read_block_size=lambda fh=file_handle: fh.read(block_size)
+                while chunk := file_handle_read_block_size():
+                    hasher_update(chunk)
+                    self.progress_info+=len(chunk)
                     if self.abort_action:
-                        sys_exit()
-                else:
-                    hasher = sha1()
-                    hasher_update=hasher.update
+                        break
 
-                    file_handle_read_block_size=lambda : file_handle.read(block_size)
-                    while chunk := file_handle_read_block_size():
-                        hasher_update(chunk)
+                self.progress_info=0
+                file_handle.close()
 
-                        self.progress_info+=len(chunk)
+                if self.abort_action:
+                    sys_exit()  #thread
 
-                        if self.abort_action:
-                            break
-
-                    self.progress_info=0
-                    file_handle.close()
-
-                    if self.abort_action:
-                        sys_exit()  #thread
-
-                    #only complete result
-                    self_data_dict[(size,fullpath)]=(pathnr,path,file_name,mtime,ctime,inode,hasher.hexdigest())
+                self_data_dict[(size,fullpath)]=(pathnr,path,file_name,mtime,ctime,inode,hasher.hexdigest())
 
             self.size_done += size
             files_done_local += 1
@@ -210,7 +214,7 @@ MODE_CRC = 0
 MODE_SIMILARITY = 1
 MODE_GPS = 2
 
-class DudeCore:
+class DupPyCore:
     def handle_sigint(self):
         print("Received SIGINT signal")
         self.log.warning("Received SIGINT signal")
@@ -346,10 +350,12 @@ class DudeCore:
     def scan(self,operation_mode,file_min_size_int=0,file_max_size_int=0,include_hidden=False):
         from PIL.Image import open as image_open
 
-        #workaround for:
-        #ERROR opening file: ...  error: Image size (200540160 pixels) exceeds limit of 178956970 pixels, could be decompression bomb DOS attack..
-        #from PIL import Image
-        #Image.MAX_IMAGE_PIXELS = None
+        if operation_mode in (MODE_SIMILARITY, MODE_GPS):
+            from PIL import Image
+            Image.MAX_IMAGE_PIXELS = None
+            self.log.warning(
+                'Image scan: PIL MAX_IMAGE_PIXELS disabled so very large images can be opened (decompression-bomb guard off for this scan).',
+            )
 
         self.log.info('')
         self.log.info('SCANNING')
@@ -651,6 +657,12 @@ class DudeCore:
                     sum_size += quant*size
 
             self.sum_size = sum_size
+            self.log.info(
+                'scan walk done: %s files seen, %s size buckets with duplicates, %s bytes in candidate sets',
+                self.info_counter,
+                len(self_scan_results_by_size),
+                sum_size,
+            )
             ######################################################################
 
             sys_exit() #thread
@@ -665,10 +677,13 @@ class DudeCore:
 
             self.log.info('reading cache:%s:device:%s',self.cache_dir,dev)
             try:
-                with open(sep.join([self.cache_dir,f'{dev}.dat']), "rb") as dat_file:
-                    self.crc_cache[dev] = loads(ZstdDecompressor().decompress(dat_file.read()))
+                cache_path=sep.join([self.cache_dir,f'{dev}.dat'])
+                self.crc_cache[dev] = _load_zstd_pickle_file(cache_path, self.log)
+            except MemoryError:
+                self.log.error('crc cache skipped for dev=%s (file too large for RAM): %s', dev, cache_path)
+                self_crc_cache[dev] = {}
             except Exception as e1:
-                self.log.warning(e1)
+                self.log.warning('crc cache read failed dev=%s: %s', dev, e1)
             else:
                 self.log.info(f'cache loaded for dev: {dev}')
         self.info=''
@@ -705,10 +720,15 @@ class DudeCore:
         self.log.info('reading image hashes cache')
 
         try:
-            with open(sep.join([self.cache_dir,'imagescache.dat']), "rb") as dat_file:
-                self.images_data_cache = loads(ZstdDecompressor().decompress(dat_file.read()))
+            self.images_data_cache = _load_zstd_pickle_file(
+                sep.join([self.cache_dir, 'imagescache.dat']),
+                self.log,
+            )
+        except MemoryError:
+            self.log.error('images cache too large for RAM — starting with empty image cache')
+            self.images_data_cache = defaultdict(dict)
         except Exception as e1:
-            self.log.warning(e1)
+            self.log.warning('images cache read failed: %s', e1)
             self.images_data_cache = defaultdict(dict)
         else:
             self.log.info(f'image hashes cache loaded.')
@@ -1366,7 +1386,9 @@ class DudeCore:
         self.crc_cache_write()
 
         end=time()
-        self.log.info('total time = %s',end-start)
+        self.log.info('crc_calc done: hashed %s / %s files, %s duplicate groups, %s s',
+                      self.info_files_done, self.info_total, self.info_found_groups, end - start)
+        self.log.info('total time = %s', end - start)
 
         self.calc_crc_min_len()
 
@@ -1718,7 +1740,7 @@ class DudeCore:
                 res.append('link_wrapper - Internal Data Inconsistency (2):%s / %s' % (full_file_path,index_tuple))
                 break
 
-            temp_file='%s.dude_pre_delete_temp' % full_file_path
+            temp_file='%s.dup_py_pre_delete_temp' % full_file_path
 
             rename_file_res1 = self_rename_file(full_file_path,temp_file,l_info)
 
@@ -1764,8 +1786,8 @@ if __name__ == "__main__":
     print('log:',log)
     logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s', filename=log,filemode='w')
 
-    print('dude core test ...')
-    core=DudeCore('./test/cache',logging)
+    print('dup_py core test ...')
+    core=DupPyCore('./test/cache',logging)
 
     TEST_DIR='test/files'
     if not path_exists(TEST_DIR):

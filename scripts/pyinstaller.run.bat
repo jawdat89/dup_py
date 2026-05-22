@@ -21,26 +21,26 @@
 @pyinstaller --version >> distro.info.txt
 
 @echo.
-@echo running-pyinstaller-stage_dude
+@echo running-pyinstaller-stage_dup_py
 pyinstaller --noconfirm --clean --optimize 2 --noupx ^
-    --version-file=version.pi.dude.txt --icon=icon.ico --windowed ^
+    --version-file=version.pi.dup_py.txt --icon=icon.ico --windowed ^
     --add-data="distro.info.txt:." --add-data="version.txt;." --add-data="../LICENSE;." ^
-    --contents-directory=internal --distpath=%OUTDIR% --name dude --additional-hooks-dir=. ^
+    --contents-directory=internal --distpath=%OUTDIR% --name dup_py --additional-hooks-dir=. ^
     --collect-binaries tkinterdnd2 ^
     --hidden-import="PIL._tkinter_finder" ^
     --hidden-import="sklearn.cluster._dbscan_inner_" ^
-    dude.py || exit /b 2
+    dup_py.py || exit /b 2
 
 @echo.
-@echo running-pyinstaller-dudecmd
+@echo running-pyinstaller-dup_py_cmd
 pyinstaller --noconfirm --clean --optimize 2 --noupx ^
-    --version-file=version.pi.dudecmd.txt --icon=icon.ico ^
+    --version-file=version.pi.dup_py_cmd.txt --icon=icon.ico ^
     --add-data="distro.info.txt:." --add-data="version.txt;." --add-data="../LICENSE;." ^
-    --distpath=%OUTDIR% --console --contents-directory=internal --name dudecmd ^
+    --distpath=%OUTDIR% --console --contents-directory=internal --name dup_py_cmd ^
     console.py || exit /b 1
 
-move %OUTDIR%\dudecmd\dudecmd.exe %OUTDIR%\dude
+move %OUTDIR%\dup_py_cmd\dup_py_cmd.exe %OUTDIR%\dup_py
 
 @echo.
 @echo packing
-powershell Compress-Archive %OUTDIR%\dude %OUTDIR%\dude.win.zip
+powershell Compress-Archive %OUTDIR%\dup_py %OUTDIR%\dup_py.win.zip

@@ -58,7 +58,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pyinstaller-win
-        path: ./build-pyinstaller/dude.win.zip
+        path: ./build-pyinstaller/dup_py.win.zip
         if-no-files-found: error
 
 ##########################################################################
@@ -210,7 +210,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pyinstaller-lin
-        path: ./build-pyinstaller/dude.lin.zip
+        path: ./build-pyinstaller/dup_py.lin.zip
         if-no-files-found: error
 
     #####################################
@@ -219,7 +219,7 @@ jobs:
       run: echo "version=$(cat ./src/version.txt)" >> $GITHUB_OUTPUT
 
     - name: rename linux distro
-      run: mv ./build-pyinstaller/dude.lin.zip ./dude.${{ steps.version.outputs.version }}.lin.zip
+      run: mv ./build-pyinstaller/dup_py.lin.zip ./dup_py.${{ steps.version.outputs.version }}.lin.zip
 
     #####################################
     - name: download windows pyinstaller distro
@@ -229,7 +229,7 @@ jobs:
         path: ./
 
     - name: rename windows distro
-      run: mv ./dude.win.zip ./dude.${{ steps.version.outputs.version }}.win.zip
+      run: mv ./dup_py.win.zip ./dup_py.${{ steps.version.outputs.version }}.win.zip
 
 #    #####################################
 #    - name: download windows nuitka distro
@@ -258,9 +258,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.version.outputs.version }}
-        name: Dude ${{ steps.version.outputs.version }}
+        name: Dup_py ${{ steps.version.outputs.version }}
         draft: false
         prerelease: false
         files: |
-            dude.${{ steps.version.outputs.version }}.lin.zip
-            dude.${{ steps.version.outputs.version }}.win.zip
+            dup_py.${{ steps.version.outputs.version }}.lin.zip
+            dup_py.${{ steps.version.outputs.version }}.win.zip

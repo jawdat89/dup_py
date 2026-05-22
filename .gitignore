@@ -130,17 +130,28 @@ dmypy.json
 
 test/
 
+dup_py.build/
+dup_py.dist/
+dup_py.onefile-build/
 dude.build/
 dude.dist/
 dude.onefile-build/
 .idea/
 
+dup_py
+dup_py.exe
+dup_py_cmd.exe
 dude
 dude.exe
+dudecmd.exe
 dudegui.exe
 
 version.txt
 
 images.py
+src/dup_py_images.py
+src/version.pi.dup_py.txt
+src/version.pi.dup_py_cmd.txt
 
+dup_py.data
 dude.data

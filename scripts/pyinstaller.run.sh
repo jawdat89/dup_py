@@ -21,16 +21,16 @@ echo ""  >> distro.info.txt
 echo "pyinstaller " `pyinstaller --version` >> distro.info.txt
 
 echo ''
-echo running-pyinstaller-stage_dude
+echo running-pyinstaller-stage_dup_py
 pyinstaller --noconfirm --noconsole --clean --optimize 2 --noupx \
     --add-data="distro.info.txt:." --add-data="version.txt:." --add-data="../LICENSE:." \
-    --contents-directory=internal --distpath=$outdir --additional-hooks-dir=. \
+    --contents-directory=internal --distpath=$outdir --name dup_py --additional-hooks-dir=. \
     --collect-binaries tkinterdnd2 \
     --hidden-import='PIL._tkinter_finder' \
     --hidden-import="sklearn.cluster._dbscan_inner_" \
-    ./dude.py
+    ./dup_py.py
 
 echo ''
 echo packing
 cd $outdir
-zip -9 -r -m ./dude.lin.zip ./dude
+zip -9 -r -m ./dup_py.lin.zip ./dup_py

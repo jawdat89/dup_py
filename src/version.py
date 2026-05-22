@@ -54,7 +54,7 @@ version='v%s' % ver_num
 with open(VERSION_FILE,'w' ) as f:
     f.write(version)
 
-for template,result in (('version.pi.template.dude.txt','version.pi.dude.txt'),('version.pi.template.dudecmd.txt','version.pi.dudecmd.txt')):
+for template,result in (('version.pi.template.dup_py.txt','version.pi.dup_py.txt'),('version.pi.template.dup_py_cmd.txt','version.pi.dup_py_cmd.txt')):
     with open(template,'r' ) as fr:
         with open(result,'w' ) as f:
             f.write(fr.read().replace('VER_TO_REPLACE',ver_num))

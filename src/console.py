@@ -47,14 +47,15 @@ def get_ver_timestamp():
 def parse_args(ver):
     parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
-            prog = 'dude.exe' if (os.name=='nt') else 'dude',
-            description = f"dude version {ver}\nCopyright (c) 2022-2026 Piotr Jochymek\n\nhttps://github.com/PJDude/dude",
+            prog = 'dup_py.exe' if (os.name=='nt') else 'dup_py',
+            description = f"Dup_py version {ver}\nCopyright (c) 2022-2026 Piotr Jochymek\n\nhttps://github.com/PJDude/dude",
             )
 
     parser.add_argument('paths',nargs='*',help='path to scan')
 
-    parser.add_argument('-ad','--appdirs',action='store_true',help="don't write files in portable mode (folder \"dude.data\" in the executable directory). Use platform specific folders provided by \"appdirs\" module.")
+    parser.add_argument('-ad','--appdirs',action='store_true',help="don't write files in portable mode (folder \"dup_py.data\" in the executable directory). Use platform specific folders provided by \"appdirs\" module.")
     parser.add_argument('-l','--log' ,nargs=1,help='specify log file')
+    parser.add_argument('--debug',action='store_true',help='verbose logging (DEBUG) to log file and console')
 
     exclude_group = parser.add_mutually_exclusive_group()
     exclude_group.add_argument('-e','--exclude',nargs='*'          ,help='exclude expressions')
@@ -84,7 +85,7 @@ def parse_args(ver):
 
 #windows console wrapper
 if __name__ == "__main__":
-    GUI_MAIN_WIN_APP_NAME='dude.exe'
+    GUI_MAIN_WIN_APP_NAME='dup_py.exe'
     VER_TIMESTAMP = get_ver_timestamp()
 
     args=parse_args(VER_TIMESTAMP)

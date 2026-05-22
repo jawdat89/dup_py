@@ -31,7 +31,7 @@ from re import search
 
 from signal import signal,SIGINT
 
-from tkinter import Tk,Toplevel,PhotoImage,Menu,PanedWindow,Label,LabelFrame,Frame,StringVar,BooleanVar,IntVar,TclVersion,TkVersion
+from tkinter import Tk,Toplevel,PhotoImage,Menu,PanedWindow,Label,LabelFrame,Frame,StringVar,BooleanVar,IntVar,TclVersion,TkVersion,Button as TkButton
 from tkinter.ttk import Checkbutton,Radiobutton,Treeview,Scrollbar,Button,Entry,Combobox,Scale,Style,Menubutton
 from tkinter.filedialog import askdirectory,asksaveasfilename
 
@@ -81,9 +81,10 @@ from send2trash import send2trash
 from core import *
 import console
 from dialogs import *
+from dup_py_log import setup_logging
 from text import LANGUAGES
 
-from dude_images import dude_image
+from dup_py_images import dup_py_image
 
 from pypdf import PdfReader
 
@@ -312,18 +313,18 @@ class Image_Cache:
 
         self.pre_and_next_range=max(floor(self.max_threads/2),1)
 
-        if env_dude_preload:=os_environ.get('DUDE_PRELOAD'):
-            print(f'{env_dude_preload=}')
+        if env_dup_py_preload:=os_environ.get('DUP_PY_PRELOAD'):
+            print(f'{env_dup_py_preload=}')
             try:
-                env_dude_preload_int = int(env_dude_preload)
+                env_dup_py_preload_int = int(env_dup_py_preload)
             except Exception as e:
-                print('DUDE_PRELOAD Error:',e)
+                print('DUP_PY_PRELOAD Error:',e)
                 sys_exit(5)
             else:
-                if env_dude_preload_int>0:
-                    self.pre_and_next_range=env_dude_preload_int
+                if env_dup_py_preload_int>0:
+                    self.pre_and_next_range=env_dup_py_preload_int
                 else:
-                    print('DUDE_PRELOAD !<0:',e)
+                    print('DUP_PY_PRELOAD !<0:',e)
                     sys_exit(6)
 
         self.window_size = (100,100)
@@ -460,12 +461,12 @@ class Gui:
 
     sel_path_full=''
 
-    block_processing_stack=['init']
-    block_processing_stack_append = block_processing_stack.append
-    block_processing_stack_pop = block_processing_stack.pop
+    def processing_is_idle(self):
+        return len(self.block_processing_stack) == 0
 
     def processing_off(self,caller_id=None):
         self.block_processing_stack_append(caller_id)
+        logging.debug('processing_off: %s stack=%s', caller_id, len(self.block_processing_stack))
 
         disable = lambda menu : self.menubar_entryconfig(menu, state="disabled")
 
@@ -473,9 +474,12 @@ class Gui:
 
         self.menubar_config(cursor='watch')
         self.main_config(cursor='watch')
+        if hasattr(self,'remove_duplicates_button'):
+            self.update_remove_duplicates_button_state()
 
     def processing_on(self):
         self.block_processing_stack_pop()
+        logging.debug('processing_on: stack=%s idle=%s', len(self.block_processing_stack), self.processing_is_idle())
 
         if not self.block_processing_stack:
             norm = lambda menu : self.menubar_entryconfig(menu, state="normal")
@@ -484,6 +488,8 @@ class Gui:
 
             self.main_config(cursor='')
             self.menubar_config(cursor='')
+            if hasattr(self,'remove_duplicates_button'):
+                self.update_remove_duplicates_button_state()
 
     #####################################################
     def block_and_log(func):
@@ -607,6 +613,10 @@ class Gui:
 
         gc_disable()
 
+        self.block_processing_stack=[]
+        self.block_processing_stack_append=self.block_processing_stack.append
+        self.block_processing_stack_pop=self.block_processing_stack.pop
+
         self.cwd=cwd
         self.last_dir=self.cwd
 
@@ -654,7 +664,7 @@ class Gui:
 
         self.main_config = self.main.config
 
-        self_main.title(f'Dude (DUplicates DEtector) {VER_TIMESTAMP}')
+        self_main.title(f'Dup_py {VER_TIMESTAMP}')
         self_main.protocol("WM_DELETE_WINDOW", self.delete_window_wrapper)
         self_main.withdraw()
 
@@ -749,7 +759,7 @@ class Gui:
         elif self_main.winfo_screenwidth()>=1200 and self_main.winfo_screenheight()>=800:
             self_main.geometry('1024x768')
 
-        self_ico = self.ico = { img:PhotoImage(data = img_data) for img,img_data in dude_image.items() }
+        self_ico = self.ico = { img:PhotoImage(data = img_data) for img,img_data in dup_py_image.items() }
 
         self.icon_nr={ i:self_ico[str(i+1)] for i in range(self.MAX_PATHS) }
 
@@ -940,6 +950,25 @@ class Gui:
         frame_groups.pack(fill='both',expand='yes')
         self.paned.add(frame_groups)
 
+        self.groups_toolbar = Frame(frame_groups,bg=bg_color)
+        self.groups_toolbar.pack(side='top',fill='x')
+        self.remove_duplicates_button = TkButton(
+            self.groups_toolbar,
+            text=STR('Remove duplicates'),
+            command=self.remove_duplicates_button_wrapper,
+            state='disabled',
+            relief='raised',
+            padx=12,
+            pady=4,
+            bg=bg_color,
+            activebackground=bg_color,
+        )
+        self.remove_duplicates_button.pack(side='left',padx=6,pady=4)
+        self.widget_tooltip(
+            self.remove_duplicates_button,
+            STR('TOOLTIP_REMOVE_DUPLICATES'),
+        )
+
         frame_folder = Frame(self.paned,bg=bg_color)
         frame_folder.pack(fill='both',expand='yes')
         self.paned.add(frame_folder)
@@ -1078,8 +1107,9 @@ class Gui:
 
         self.vsb1.pack(side='right',fill='y',expand=0)
         self_groups_tree.pack(fill='both',expand=1, side='left')
+        self.groups_toolbar.lift()
 
-        self_groups_tree.bind('<Double-Button-1>', self.double_left_button)
+        self.groups_tree.bind('<Double-Button-1>', self.double_left_button)
 
         self.folder_tree=Treeview(frame_folder,takefocus=True,selectmode='none')
         self_folder_tree = self.folder_tree
@@ -1707,6 +1737,7 @@ class Gui:
         self.main_update()
 
         self.scan_dialog_show(run_scan_condition)
+        self.update_remove_duplicates_button_state()
 
         self_groups_tree.focus_set()
 
@@ -1715,8 +1746,6 @@ class Gui:
 
         gc_collect()
         gc_enable()
-
-        self.processing_on()
 
         self_main.mainloop()
         #######################################################################
@@ -1867,6 +1896,8 @@ class Gui:
             self.main_locked_by_child=None
 
         self.processing_on()
+        if hasattr(self,'remove_duplicates_button'):
+            self.update_remove_duplicates_button_state()
 
     def pre_show_settings(self,on_main_window_dialog=True,new_widget=None):
         _ = {var.set(self.cfg_get_bool(key)) for var,key in self.settings}
@@ -2319,7 +2350,7 @@ class Gui:
             frame1.grid(row=0,column=0,sticky='news',padx=4,pady=(4,2))
             self.about_dialog.area_main.grid_rowconfigure(1, weight=1)
 
-            text= f'\n\nDUDE (DUplicates DEtector) {VER_TIMESTAMP}\nAuthor: Piotr Jochymek\n\n{HOMEPAGE}\n\nPJ.soft.dev.x@gmail.com\n\n'
+            text= f'\n\nDup_py {VER_TIMESTAMP}\nAuthor: Piotr Jochymek\n\n{HOMEPAGE}\n\nPJ.soft.dev.x@gmail.com\n\n'
 
             Label(frame1,text=text,bg=self.bg_color,justify='center').pack(expand=1,fill='both')
 
@@ -2353,11 +2384,11 @@ class Gui:
             self.status(STR("Creating dialog ..."))
 
             try:
-                self.license=Path(path_join(DUDE_DIR,'LICENSE')).read_text(encoding='ASCII')
+                self.license=Path(path_join(DUP_PY_DIR,'LICENSE')).read_text(encoding='ASCII')
             except Exception as exception_lic:
                 l_error(exception_lic)
                 try:
-                    self.license=Path(path_join(dirname(DUDE_DIR),'LICENSE')).read_text(encoding='ASCII')
+                    self.license=Path(path_join(dirname(DUP_PY_DIR),'LICENSE')).read_text(encoding='ASCII')
                 except Exception as exception_2:
                     l_error(exception_2)
                     self.exit()
@@ -2564,11 +2595,11 @@ class Gui:
                     if col=="#0" :
                         if pathnr:
                             if kind==self.FILE:
-                                self.tooltip_lab_configure(text='%s - %s' % (pathnr+1,dude_core.scanned_paths[pathnr]) )
+                                self.tooltip_lab_configure(text='%s - %s' % (pathnr+1,dup_py_core.scanned_paths[pathnr]) )
                                 self.tooltip_deiconify()
                         else:
                             if kind==self.FILE:
-                                self.tooltip_lab_configure(text=f'{pathnr+1} = {dude_core.scanned_paths[pathnr]}' )
+                                self.tooltip_lab_configure(text=f'{pathnr+1} = {dup_py_core.scanned_paths[pathnr]}' )
                                 self.tooltip_deiconify()
                             else:
                                 crc=item
@@ -2586,7 +2617,7 @@ class Gui:
                             if self.operation_mode==MODE_GPS:
                                 if self.sel_path_full :
                                     try:
-                                        gps = dude_core.scan_results_image_to_gps[(dev,inode)]
+                                        gps = dup_py_core.scan_results_image_to_gps[(dev,inode)]
 
                                         self.tooltip_lab_configure(text=coldata + '\nGPS:' + str(gps) )
 
@@ -2645,7 +2676,7 @@ class Gui:
                                 #kind,size,crc, (pathnr,path,file,ctime,dev,inode) = self.folder_tree_item_to_data[item]
                                 dev = tree.set(item,'dev')
                                 inode = tree.set(item,'inode')
-                                gps = dude_core.scan_results_image_to_gps[(int(dev),int(inode))]
+                                gps = dup_py_core.scan_results_image_to_gps[(int(dev),int(inode))]
 
                                 self.tooltip_lab_configure(text=coldata + '\nGPS:' + str(gps) )
                                 self.tooltip_deiconify()
@@ -3211,15 +3242,15 @@ class Gui:
                     elif key in self.reftuple1:
                         index = self.reftuple1.index(key)
 
-                        if index<len(dude_core.scanned_paths):
+                        if index<len(dup_py_core.scanned_paths):
                             if tree==self.groups_tree:
-                                self.action_on_path(dude_core.scanned_paths[index],self.set_mark,ctrl_pressed)
+                                self.action_on_path(dup_py_core.scanned_paths[index],self.set_mark,ctrl_pressed)
                     elif key in self.reftuple2:
                         index = self.reftuple2.index(key)
 
-                        if index<len(dude_core.scanned_paths):
+                        if index<len(dup_py_core.scanned_paths):
                             if tree==self.groups_tree:
-                                self.action_on_path(dude_core.scanned_paths[index],self.unset_mark,ctrl_pressed)
+                                self.action_on_path(dup_py_core.scanned_paths[index],self.unset_mark,ctrl_pressed)
                     elif key in ('KP_Divide','slash'):
                         if tree==self.groups_tree:
                             self.mark_subpath(self.set_mark,True)
@@ -3422,7 +3453,7 @@ class Gui:
                     self.preview_frame_txt.pack_forget()
                     self.preview_label_img.pack_forget()
                     self.preview_label_txt_configure(text='')
-                    self.preview.title('Dude - Preview')
+                    self.preview.title('Dup_py - Preview')
 
                 elif ext_lower in IMAGES_EXTENSIONS:
                     self.preview_frame_txt.pack_forget()
@@ -3512,7 +3543,7 @@ class Gui:
                 self.preview_frame_txt.pack_forget()
                 self.preview_label_img.pack_forget()
                 self.preview_label_txt_configure(text='')
-                self.preview.title('Dude - ' + STR('Preview (no path)'))
+                self.preview.title('Dup_py - ' + STR('Preview (no path)'))
 
     def hide_preview(self,user_action=True):
         self_preview = self.preview
@@ -3638,7 +3669,7 @@ class Gui:
 
             if pathnr is not None: #non crc node , may be 0
                 self.sel_pathnr,self.sel_path = pathnr,path
-                self.sel_path_set(dude_core.scanned_paths[pathnr]+path)
+                self.sel_path_set(dup_py_core.scanned_paths[pathnr]+path)
             else :
                 self.sel_pathnr,self.sel_path = None,None
                 self.sel_path_set(None)
@@ -3802,7 +3833,7 @@ class Gui:
             unmark_cascade_path = Menu(c_local, tearoff = 0,bg=self.bg_color)
 
             row=0
-            for path in dude_core.scanned_paths:
+            for path in dup_py_core.scanned_paths:
                 mark_cascade_path.add_command(image=self.icon_nr[row], label = path, compound = 'left',command  = lambda pathpar=path: self.action_on_path(pathpar,self.set_mark,False),accelerator=str(row+1)  )
                 unmark_cascade_path.add_command(image=self.icon_nr[row], label = path, compound = 'left', command  = lambda pathpar=path: self.action_on_path(pathpar,self.unset_mark,False),accelerator="Shift+"+str(row+1)  )
                 row+=1
@@ -3879,7 +3910,7 @@ class Gui:
             unmark_cascade_path = Menu(c_all, tearoff = 0,bg=self.bg_color)
 
             row=0
-            for path in dude_core.scanned_paths:
+            for path in dup_py_core.scanned_paths:
                 mark_cascade_path.add_command(image=self.icon_nr[row], label = path, compound = 'left', command  = lambda pathpar=path: self.action_on_path(pathpar,self.set_mark,True) ,accelerator="Ctrl+"+str(row+1) )
                 unmark_cascade_path.add_command(image=self.icon_nr[row], label = path, compound = 'left',  command  = lambda pathpar=path: self.action_on_path(pathpar,self.unset_mark,True) ,accelerator="Ctrl+Shift+"+str(row+1))
                 row+=1
@@ -4158,6 +4189,7 @@ class Gui:
             return
 
         self.scanning_in_progress=True
+        self.update_remove_duplicates_button_state()
 
         try:
             if self.scan():
@@ -4167,10 +4199,12 @@ class Gui:
             self.status(str(e))
 
         self.scanning_in_progress=False
+        self.update_remove_duplicates_button_state()
 
     def scan_dialog_hide_wrapper(self):
         self.scan_dialog.hide()
         self.groups_tree.focus_set()
+        self.update_remove_duplicates_button_state()
 
     def scan_update_info_path_nr(self):
         self.update_scan_path_nr=True
@@ -4192,14 +4226,14 @@ class Gui:
         self.cfg.write()
 
         self.hide_preview(False)
-        dude_core.reset()
+        dup_py_core.reset()
         self.status_path_configure(text='')
         self.groups_show()
 
         paths_to_scan_from_entry = [var.get() for var in self.paths_to_scan_entry_var.values() if bool(var.get())]
         exclude_from_entry = [var.get() for var in self.exclude_entry_var.values()]
 
-        if res:=dude_core.set_exclude_masks(self.cfg_get_bool(CFG_KEY_EXCLUDE_REGEXP),exclude_from_entry):
+        if res:=dup_py_core.set_exclude_masks(self.cfg_get_bool(CFG_KEY_EXCLUDE_REGEXP),exclude_from_entry):
             self.get_info_dialog_on_scan().show('Error. Fix expression.',res)
             return False
         self.cfg.set(CFG_KEY_EXCLUDE,'|'.join(exclude_from_entry))
@@ -4208,7 +4242,7 @@ class Gui:
             self.get_info_dialog_on_scan().show('Error. No paths to scan.','Add paths to scan.')
             return False
 
-        if res:=dude_core.set_paths_to_scan(paths_to_scan_from_entry):
+        if res:=dup_py_core.set_paths_to_scan(paths_to_scan_from_entry):
             self.get_info_dialog_on_scan().show('Error. Fix paths selection.',res)
             return False
 
@@ -4217,7 +4251,7 @@ class Gui:
 
         self.cfg.set(CFG_RECENTS,'|'.join(sorted(list(recents))))
 
-        dude_core.scan_update_info_path_nr=self.scan_update_info_path_nr
+        dup_py_core.scan_update_info_path_nr=self.scan_update_info_path_nr
 
         self.main_update()
 
@@ -4245,7 +4279,7 @@ class Gui:
 
         self.update_scan_path_nr=False
 
-        dude_core.log_skipped = self.log_skipped_var.get()
+        dup_py_core.log_skipped = self.log_skipped_var.get()
         #self.log_skipped = self.log_skipped_var.get()
 
         self.operation_mode = operation_mode = self.operation_mode_var.get()
@@ -4320,7 +4354,7 @@ class Gui:
 
         #################
 
-        scan_thread=Thread(target=lambda : dude_core.scan(operation_mode,file_min_size_int,file_max_size_int,include_hidden),daemon=True)
+        scan_thread=Thread(target=lambda : dup_py_core.scan(operation_mode,file_min_size_int,file_max_size_int,include_hidden),daemon=True)
         scan_thread.start()
 
         self_progress_dialog_on_scan.lab_l1.configure(text=STR('Total space:'))
@@ -4371,8 +4405,8 @@ class Gui:
         wait_var_get = wait_var.get
 
         while scan_thread_is_alive():
-            new_data[3]=local_bytes_to_str(dude_core.info_size_sum)
-            new_data[4]=fnumber(dude_core.info_counter)
+            new_data[3]=local_bytes_to_str(dup_py_core.info_size_sum)
+            new_data[4]=fnumber(dup_py_core.info_counter)
 
             anything_changed=False
             for i in (3,4):
@@ -4384,15 +4418,15 @@ class Gui:
             now=time()
             if self.update_scan_path_nr:
                 self.update_scan_path_nr=False
-                self_progress_dialog_on_scan_lab[0].configure(image=self_icon_nr[dude_core.info_path_nr])
-                self_progress_dialog_on_scan_lab[1].configure(text=dude_core.info_path_to_scan)
+                self_progress_dialog_on_scan_lab[0].configure(image=self_icon_nr[dup_py_core.info_path_nr])
+                self_progress_dialog_on_scan_lab[1].configure(text=dup_py_core.info_path_to_scan)
 
             if anything_changed:
                 time_without_busy_sign=now
 
                 if operation_mode in (MODE_SIMILARITY,MODE_GPS):
-                    self_progress_dialog_on_scan_lab_r1_config(text=local_bytes_to_str(dude_core.info_size_sum_images))
-                    self_progress_dialog_on_scan_lab_r2_config(text=fnumber(dude_core.info_counter_images))
+                    self_progress_dialog_on_scan_lab_r1_config(text=local_bytes_to_str(dup_py_core.info_size_sum_images))
+                    self_progress_dialog_on_scan_lab_r2_config(text=fnumber(dup_py_core.info_counter_images))
 
                 if update_once:
                     update_once=False
@@ -4404,14 +4438,14 @@ class Gui:
                 if now>time_without_busy_sign+1.0:
                     self_progress_dialog_on_scan_lab[2].configure(image=self_get_hg_ico(),text = '', compound='left')
 
-                    self_tooltip_message[str_self_progress_dialog_on_scan_abort_button]='currently scanning:\n%s...' % dude_core.info_line
+                    self_tooltip_message[str_self_progress_dialog_on_scan_abort_button]='currently scanning:\n%s...' % dup_py_core.info_line
                     self_configure_tooltip(str_self_progress_dialog_on_scan_abort_button)
                     update_once=True
 
             self_progress_dialog_on_scan_area_main_update()
 
             if self.action_abort:
-                dude_core.abort()
+                dup_py_core.abort()
                 break
 
             self_main_after(100,lambda : wait_var_set(not wait_var_get()))
@@ -4424,7 +4458,7 @@ class Gui:
             return False
 
         #############################
-        if dude_core.sum_size==0:
+        if dup_py_core.sum_size==0:
             self_progress_dialog_on_scan.hide(True)
             self.get_info_dialog_on_scan().show(STR('Cannot Proceed.'),STR('No Duplicates.'))
             return False
@@ -4458,39 +4492,39 @@ class Gui:
             hash_size = self.similarity_hsize_varx2.get()
             all_rotations = self.all_rotations.get()
 
-            ih_thread=Thread(target=lambda : dude_core.images_processing(operation_mode,hash_size,all_rotations,image_min_size_int,image_max_size_int) ,daemon=True)
+            ih_thread=Thread(target=lambda : dup_py_core.images_processing(operation_mode,hash_size,all_rotations,image_min_size_int,image_max_size_int) ,daemon=True)
             ih_thread.start()
 
             ih_thread_is_alive = ih_thread.is_alive
 
-            bytes_to_str_dude_core_sum_size = local_bytes_to_str(dude_core.info_size_sum_images)
-            fnumber_dude_core_info_counter_images = fnumber(dude_core.info_counter_images)
+            bytes_to_str_dup_py_core_sum_size = local_bytes_to_str(dup_py_core.info_size_sum_images)
+            fnumber_dup_py_core_info_counter_images = fnumber(dup_py_core.info_counter_images)
 
             aborted=False
 
             while ih_thread_is_alive():
                 anything_changed=False
 
-                size_progress_info=dude_core.info_size_done_perc
+                size_progress_info=dup_py_core.info_size_done_perc
                 if size_progress_info!=prev_progress_size:
                     prev_progress_size=size_progress_info
 
                     self_progress_dialog_on_scan_progr1var_set(size_progress_info)
-                    self_progress_dialog_on_scan_lab_r1_config(text='%s / %s' % (local_bytes_to_str(dude_core.info_size_done),bytes_to_str_dude_core_sum_size))
+                    self_progress_dialog_on_scan_lab_r1_config(text='%s / %s' % (local_bytes_to_str(dup_py_core.info_size_done),bytes_to_str_dup_py_core_sum_size))
                     anything_changed=True
 
-                quant_progress_info=dude_core.info_files_done_perc
+                quant_progress_info=dup_py_core.info_files_done_perc
                 if quant_progress_info!=prev_progress_quant:
                     prev_progress_quant=quant_progress_info
 
                     self_progress_dialog_on_scan_progr2var_set(quant_progress_info)
-                    self_progress_dialog_on_scan_lab_r2_config(text='%s / %s' % (fnumber(dude_core.info_files_done),fnumber_dude_core_info_counter_images))
+                    self_progress_dialog_on_scan_lab_r2_config(text='%s / %s' % (fnumber(dup_py_core.info_files_done),fnumber_dup_py_core_info_counter_images))
                     anything_changed=True
 
                     self_progress_dialog_on_scan_area_main_update()
 
-                if dude_core.can_abort and self.action_abort and not dude_core.abort_action:
-                    dude_core.abort_action = True
+                if dup_py_core.can_abort and self.action_abort and not dup_py_core.abort_action:
+                    dup_py_core.abort_action = True
                     self_progress_dialog_on_scan_lab[3].configure(image='',text=STR('Aborted'))
                     self_progress_dialog_on_scan.abort_button.configure(state='disabled',text='',image='')
 
@@ -4499,7 +4533,7 @@ class Gui:
 
                 self_progress_dialog_on_scan_lab[0].configure(image=self_get_hg_ico(),text='')
 
-                self_status(dude_core.info)
+                self_status(dup_py_core.info)
 
                 self_main_after(50,lambda : wait_var_set(not wait_var_get()))
                 self_main_wait_variable(wait_var)
@@ -4529,7 +4563,7 @@ class Gui:
 
                 distance = self.similarity_distance_var.get()
 
-                sc_thread=Thread(target=lambda : dude_core.similarity_clustering(hash_size,distance,all_rotations),daemon=True)
+                sc_thread=Thread(target=lambda : dup_py_core.similarity_clustering(hash_size,distance,all_rotations),daemon=True)
                 sc_thread.start()
 
                 sc_thread_is_alive = sc_thread.is_alive
@@ -4537,7 +4571,7 @@ class Gui:
                 while sc_thread_is_alive():
                     self_progress_dialog_on_scan_lab[0].configure(image=self_get_hg_ico(),text='')
 
-                    self_progress_dialog_on_scan_lab[1].configure(image='',text=dude_core.info_line)
+                    self_progress_dialog_on_scan_lab[1].configure(image='',text=dup_py_core.info_line)
 
                     self_main_after(50,lambda : wait_var_set(not wait_var_get()))
                     self_main_wait_variable(wait_var)
@@ -4550,7 +4584,7 @@ class Gui:
 
                 distance = self.similarity_distance_var.get()
 
-                gpsc_thread=Thread(target=lambda : dude_core.gps_clustering(distance),daemon=True)
+                gpsc_thread=Thread(target=lambda : dup_py_core.gps_clustering(distance),daemon=True)
                 gpsc_thread.start()
 
                 gpsc_thread_is_alive = gpsc_thread.is_alive
@@ -4558,7 +4592,7 @@ class Gui:
                 while gpsc_thread_is_alive():
                     self_progress_dialog_on_scan_lab[0].configure(image=self_get_hg_ico(),text='')
 
-                    self_progress_dialog_on_scan_lab[1].configure(image='',text=dude_core.info_line)
+                    self_progress_dialog_on_scan_lab[1].configure(image='',text=dup_py_core.info_line)
 
                     self_main_after(50,lambda : wait_var_set(not wait_var_get()))
                     self_main_wait_variable(wait_var)
@@ -4589,7 +4623,7 @@ class Gui:
             self_progress_dialog_on_scan.widget.title(STR('Calculating CRC'))
 
             self_status(STR('Starting CRC threads') + ' ...')
-            crc_thread=Thread(target=dude_core.crc_calc,daemon=True)
+            crc_thread=Thread(target=dup_py_core.crc_calc,daemon=True)
             crc_thread.start()
 
             update_once=True
@@ -4601,39 +4635,39 @@ class Gui:
 
             crc_thread_is_alive = crc_thread.is_alive
 
-            bytes_to_str_dude_core_sum_size = local_bytes_to_str(dude_core.sum_size)
+            bytes_to_str_dup_py_core_sum_size = local_bytes_to_str(dup_py_core.sum_size)
 
             self_main_after = self.main.after
             wait_var_get = wait_var.get
             wait_var_set = wait_var.set
             self_main_wait_variable = self.main.wait_variable
 
-            #fnumber_dude_core_info_total = fnumber(dude_core.info_total)
+            #fnumber_dup_py_core_info_total = fnumber(dup_py_core.info_total)
             while crc_thread_is_alive():
                 anything_changed=False
 
-                size_progress_info=dude_core.info_size_done_perc
+                size_progress_info=dup_py_core.info_size_done_perc
                 if size_progress_info!=prev_progress_size:
                     prev_progress_size=size_progress_info
 
                     self_progress_dialog_on_scan_progr1var_set(size_progress_info)
-                    self_progress_dialog_on_scan_lab_r1_config(text='%s / %s' % (local_bytes_to_str(dude_core.info_size_done),bytes_to_str_dude_core_sum_size))
+                    self_progress_dialog_on_scan_lab_r1_config(text='%s / %s' % (local_bytes_to_str(dup_py_core.info_size_done),bytes_to_str_dup_py_core_sum_size))
                     anything_changed=True
 
-                quant_progress_info=dude_core.info_files_done_perc
+                quant_progress_info=dup_py_core.info_files_done_perc
                 if quant_progress_info!=prev_progress_quant:
                     prev_progress_quant=quant_progress_info
 
                     self_progress_dialog_on_scan_progr2var_set(quant_progress_info)
-                    self_progress_dialog_on_scan_lab_r2_config(text='%s / %s' % (fnumber(dude_core.info_files_done),fnumber(dude_core.info_total)))
+                    self_progress_dialog_on_scan_lab_r2_config(text='%s / %s' % (fnumber(dup_py_core.info_files_done),fnumber(dup_py_core.info_total)))
                     anything_changed=True
 
                 if anything_changed:
-                    if dude_core.info_found_groups:
+                    if dup_py_core.info_found_groups:
                         #new_data[1]='Results'
-                        new_data[2]='groups: %s' % fnumber(dude_core.info_found_groups)
-                        new_data[3]='space: %s' % local_bytes_to_str(dude_core.info_found_dupe_space)
-                        new_data[4]='folders: %s' % fnumber(dude_core.info_found_folders)
+                        new_data[2]='groups: %s' % fnumber(dup_py_core.info_found_groups)
+                        new_data[3]='space: %s' % local_bytes_to_str(dup_py_core.info_found_dupe_space)
+                        new_data[4]='folders: %s' % fnumber(dup_py_core.info_found_folders)
 
                         for i in (2,3,4):
                             if new_data[i] != prev_data[i]:
@@ -4645,7 +4679,7 @@ class Gui:
                 now=time()
                 if anything_changed:
                     time_without_busy_sign=now
-                    #info_line = dude_core.info_line if len(dude_core.info_line)<48 else ('...%s' % dude_core.info_line[-48:])
+                    #info_line = dup_py_core.info_line if len(dup_py_core.info_line)<48 else ('...%s' % dup_py_core.info_line[-48:])
                     #self_progress_dialog_on_scan_lab[1].configure(text=info_line)
 
                     if update_once:
@@ -4658,11 +4692,11 @@ class Gui:
                     if now>time_without_busy_sign+1.0:
                         self_progress_dialog_on_scan_lab[0].configure(image=self_get_hg_ico(),text='')
 
-                        self_tooltip_message[str_self_progress_dialog_on_scan_abort_button]='crc calculating:\n%s...' % dude_core.info_line
+                        self_tooltip_message[str_self_progress_dialog_on_scan_abort_button]='crc calculating:\n%s...' % dup_py_core.info_line
                         self_configure_tooltip(str_self_progress_dialog_on_scan_abort_button)
                         update_once=True
 
-                if dude_core.can_abort:
+                if dup_py_core.can_abort:
                     if self.action_abort:
                         self_progress_dialog_on_scan_lab[0].configure(image='',text=STR('Aborted.'))
                         self_progress_dialog_on_scan_lab[1].configure(text=STR('... Rendering data ...'))
@@ -4670,10 +4704,10 @@ class Gui:
                         self_progress_dialog_on_scan_lab[3].configure(text='')
                         self_progress_dialog_on_scan_lab[4].configure(text='')
                         self_progress_dialog_on_scan_area_main_update()
-                        dude_core.abort()
+                        dup_py_core.abort()
                         break
 
-                self_status(dude_core.info)
+                self_status(dup_py_core.info)
 
                 self_main_after(100,lambda : wait_var_set(not wait_var_get()))
                 self_main_wait_variable(wait_var)
@@ -4722,8 +4756,8 @@ class Gui:
 
         self.scan_dialog.show()
 
-        if dude_core.scanned_paths:
-            self.paths_to_scan_from_dialog=dude_core.scanned_paths.copy()
+        if dup_py_core.scanned_paths:
+            self.paths_to_scan_from_dialog=dup_py_core.scanned_paths.copy()
 
     def paths_to_scan_update(self) :
         self_paths_to_scan_entry_var = self.paths_to_scan_entry_var
@@ -5035,7 +5069,7 @@ class Gui:
         self_files_of_groups_filtered_by_mode = self.files_of_groups_filtered_by_mode
 
         if self.operation_mode in (MODE_SIMILARITY,MODE_GPS):
-            for group_index,items_set in dude_core.files_of_images_groups.items():
+            for group_index,items_set in dup_py_core.files_of_images_groups.items():
                 crc = group_index
                 if crc in self_files_of_groups_filtered_by_mode:
                     for pathnr,path,file,ctime,dev,inode,size in items_set:
@@ -5051,7 +5085,7 @@ class Gui:
                                 self_biggest_file_of_path_id[path_index]=item_id
 
         else:
-            for size,size_dict in dude_core.files_of_size_of_crc_items():
+            for size,size_dict in dup_py_core.files_of_size_of_crc_items():
                 for crc,crc_dict in size_dict.items():
                     if crc in self_files_of_groups_filtered_by_mode:
                         for pathnr,path,file,ctime,dev,inode in crc_dict:
@@ -5108,7 +5142,7 @@ class Gui:
             self.groups_tree.heading('#0',text=STR('CRC/Scan Path'),anchor='w')
             self.folder_tree.heading('#0',text='CRC',anchor='w')
 
-        self_idfunc=self.idfunc = (lambda i,d : '%s-%s' % (i,d)) if len(dude_core.devs)>1 else (lambda i,d : str(i))
+        self_idfunc=self.idfunc = (lambda i,d : '%s-%s' % (i,d)) if len(dup_py_core.devs)>1 else (lambda i,d : str(i))
 
         self_status=self.status
 
@@ -5140,7 +5174,7 @@ class Gui:
         self_iid_to_size=self.iid_to_size
         self.iid_to_size.clear()
         localtime_catched_local = localtime_catched
-        dude_core_scanned_paths=dude_core.scanned_paths
+        dup_py_core_scanned_paths=dup_py_core.scanned_paths
         self_icon_nr=self.icon_nr
         local_bytes_to_str = bytes_to_str
 
@@ -5149,7 +5183,7 @@ class Gui:
         if self.operation_mode in (MODE_SIMILARITY,MODE_GPS):
             #####################################################
 
-            for group_index,items_set in dude_core.files_of_images_groups.items():
+            for group_index,items_set in dup_py_core.files_of_images_groups.items():
                 crc = group_index
                 size_str_group = ''
                 size = 0
@@ -5192,7 +5226,7 @@ class Gui:
                                 size_h,\
                                 str(ctime),str(dev),str(inode),crc,\
                                 '','',\
-                                strftime('%Y/%m/%d %H:%M:%S',localtime_catched_local(ctime//1000000000)),self_FILE),tags=self_NOTAG,text=dude_core_scanned_paths[pathnr] if show_full_paths else '',image=self_icon_nr[pathnr]) #DE_NANO= 1_000_000_000
+                                strftime('%Y/%m/%d %H:%M:%S',localtime_catched_local(ctime//1000000000)),self_FILE),tags=self_NOTAG,text=dup_py_core_scanned_paths[pathnr] if show_full_paths else '',image=self_icon_nr[pathnr]) #DE_NANO= 1_000_000_000
 
                     #kind,crc,index_tuple
                     #kind,crc,(pathnr,path,file,ctime,dev,inode)
@@ -5202,9 +5236,9 @@ class Gui:
 
             sizes_counter=0
 
-            dude_core_crc_cut_len=dude_core.crc_cut_len
+            dup_py_core_crc_cut_len=dup_py_core.crc_cut_len
 
-            for size,size_dict in dude_core.files_of_size_of_crc_items() :
+            for size,size_dict in dup_py_core.files_of_size_of_crc_items() :
                 size_h = local_bytes_to_str(size)
                 size_str = str(size)
                 if not sizes_counter%128:
@@ -5225,7 +5259,7 @@ class Gui:
 
                     #self_groups_tree["columns"]=('pathnr','path','file','size','size_h','ctime','dev','inode','crc','instances','instances_h','ctime_h','kind')
                     instances_str=str(len(crc_dict))
-                    crc_item=self_groups_tree_insert('','end',crc, values=('','','',size_str,size_h,'','','',crc,instances_str,instances_str,'',self_CRC),tags=self_CRC,open=True,text= crc if show_full_crc else crc[:dude_core_crc_cut_len])
+                    crc_item=self_groups_tree_insert('','end',crc, values=('','','',size_str,size_h,'','','',crc,instances_str,instances_str,'',self_CRC),tags=self_CRC,open=True,text= crc if show_full_crc else crc[:dup_py_core_crc_cut_len])
 
                     #kind,crc,index_tuple
                     #kind,crc,(pathnr,path,file,ctime,dev,inode)
@@ -5247,13 +5281,13 @@ class Gui:
                                 '',\
                                 str(ctime),str(dev),str(inode),crc,\
                                 '','',\
-                                strftime('%Y/%m/%d %H:%M:%S',localtime_catched_local(ctime//1000000000)),self_FILE),tags=self_NOTAG,text=dude_core_scanned_paths[pathnr] if show_full_paths else '',image=self_icon_nr[pathnr]) #DE_NANO= 1_000_000_000
+                                strftime('%Y/%m/%d %H:%M:%S',localtime_catched_local(ctime//1000000000)),self_FILE),tags=self_NOTAG,text=dup_py_core_scanned_paths[pathnr] if show_full_paths else '',image=self_icon_nr[pathnr]) #DE_NANO= 1_000_000_000
 
                         #kind,crc,index_tuple
                         #kind,crc,(pathnr,path,file,ctime,dev,inode)
                         self_groups_tree_item_to_data[file_item]=(self_FILE,size,crc, (pathnr,path,file,ctime,dev,inode) )
 
-            self.crc_to_size={crc:size for size,size_dict in dude_core.files_of_size_of_crc.items() for crc in size_dict }
+            self.crc_to_size={crc:size for size,size_dict in dup_py_core.files_of_size_of_crc.items() for crc in size_dict }
 
         self.data_precalc()
 
@@ -5268,6 +5302,7 @@ class Gui:
 
         self.initial_focus()
         self.calc_mark_stats_groups()
+        self.update_remove_duplicates_button_state()
 
         #self.menu_enable()
         self_status('')
@@ -5283,23 +5318,23 @@ class Gui:
         show_full_paths=self.cfg_get_bool(CFG_KEY_FULL_PATHS)
 
         self_idfunc=self.idfunc
-        dude_core_crc_cut_len=dude_core.crc_cut_len
+        dup_py_core_crc_cut_len=dup_py_core.crc_cut_len
 
         self_groups_tree_item=self.groups_tree.item
         self_icon_nr=self.icon_nr
-        dude_core_scanned_paths=dude_core.scanned_paths
+        dup_py_core_scanned_paths=dup_py_core.scanned_paths
         self_crc_to_size=self.crc_to_size
         self_groups_tree_item_to_data = self.groups_tree_item_to_data
-        for size,size_dict in dude_core.files_of_size_of_crc_items() :
+        for size,size_dict in dup_py_core.files_of_size_of_crc_items() :
             for crc,crc_dict in size_dict.items():
                 if crc in self_crc_to_size:
                     if crc in self_groups_tree_item_to_data:# dla cross paths moze nie istniec item crc
-                        self_groups_tree_item(crc,text=crc if show_full_crc else crc[:dude_core_crc_cut_len])
+                        self_groups_tree_item(crc,text=crc if show_full_crc else crc[:dup_py_core_crc_cut_len])
                         for pathnr,path,file,ctime,dev,inode in crc_dict:
                             if configure_icon:
-                                self_groups_tree_item(self_idfunc(inode,dev),image=self_icon_nr[pathnr],text=dude_core_scanned_paths[pathnr] if show_full_paths else '')
+                                self_groups_tree_item(self_idfunc(inode,dev),image=self_icon_nr[pathnr],text=dup_py_core_scanned_paths[pathnr] if show_full_paths else '')
                             else:
-                                self_groups_tree_item(self_idfunc(inode,dev),text=dude_core_scanned_paths[pathnr] if show_full_paths else '')
+                                self_groups_tree_item(self_idfunc(inode,dev),text=dup_py_core_scanned_paths[pathnr] if show_full_paths else '')
 
         self.status('')
 
@@ -5353,9 +5388,9 @@ class Gui:
         self_idfunc=self.idfunc
 
         self_id2crc=self.id2crc
-        dude_core_crc_cut_len=dude_core.crc_cut_len
-        dude_core_files_of_size_of_crc=dude_core.files_of_size_of_crc
-        dude_core_files_of_images_groups = dude_core.files_of_images_groups
+        dup_py_core_crc_cut_len=dup_py_core.crc_cut_len
+        dup_py_core_files_of_size_of_crc=dup_py_core.files_of_size_of_crc
+        dup_py_core_files_of_images_groups = dup_py_core.files_of_images_groups
 
         NONE_ICON=''
         FOLDER_ICON=self.ico_folder
@@ -5430,13 +5465,13 @@ class Gui:
                                     if ctime != core_ctime:
                                         item_rocognized=False
                                     else:
-                                        values = (name,str(dev),str(inode),self_FILE,crc,str(size_num),size_h,str(ctime),ctime_h,instances_both := str(len(dude_core_files_of_images_groups[crc]) if operation_mode_images else len(dude_core_files_of_size_of_crc[size_num][crc])),instances_both)
+                                        values = (name,str(dev),str(inode),self_FILE,crc,str(size_num),size_h,str(ctime),ctime_h,instances_both := str(len(dup_py_core_files_of_images_groups[crc]) if operation_mode_images else len(dup_py_core_files_of_size_of_crc[size_num][crc])),instances_both)
                                         in_tagged=bool(file_id in self_tagged)
                                         if in_tagged:
                                             self_current_folder_items_tagged_add(file_id)
                                             current_folder_items_tagged_size+=size_num
 
-                                        folder_items_add((non_dir_code,sort_val_func(values[sort_index_local]),file_id,crc if show_full_crc else crc[:dude_core_crc_cut_len],values,self_MARK if in_tagged else self_NOTAG,NONE_ICON))
+                                        folder_items_add((non_dir_code,sort_val_func(values[sort_index_local]),file_id,crc if show_full_crc else crc[:dup_py_core_crc_cut_len],values,self_MARK if in_tagged else self_NOTAG,NONE_ICON))
                                 else:
                                     item_rocognized=False
 
@@ -5526,11 +5561,39 @@ class Gui:
                 if in_tagged:
                     self_current_folder_items_tagged_add(item)
 
+    def update_remove_duplicates_button_state(self):
+        enabled = bool(self.tagged) and not self.scanning_in_progress and self.processing_is_idle()
+        state = 'normal' if enabled else 'disabled'
+        self.remove_duplicates_button.config(state=state)
+        self.remove_duplicates_button.update_idletasks()
+        logging.debug(
+            'remove_duplicates_button state=%s marked=%s scanning=%s idle=%s stack=%s',
+            state, len(self.tagged), self.scanning_in_progress, self.processing_is_idle(), self.block_processing_stack,
+        )
+
+    def remove_duplicates_button_wrapper(self):
+        l_info(
+            'Remove duplicates clicked: marked=%s idle=%s stack=%s',
+            len(self.tagged), self.processing_is_idle(), self.block_processing_stack,
+        )
+        if not self.processing_is_idle():
+            l_warning('Remove duplicates ignored: processing in progress')
+            return
+        if not self.tagged:
+            l_warning('Remove duplicates ignored: no files marked')
+            self.get_info_dialog_on_main().show(
+                STR('No Files Marked For Processing !'),
+                STR('Mark files first (Space), then click Remove duplicates.'),
+            )
+            return
+        self.process_files_in_groups_wrapper(DELETE,1)
+
     def calc_mark_stats_groups(self):
         self_tagged = self.tagged
         self.status_all_quant_configure(text=fnumber(len(self_tagged)))
         self_iid_to_size=self.iid_to_size
         self.status_all_size_configure(text=bytes_to_str(sum([self_iid_to_size[iid] for iid in self_tagged])))
+        self.update_remove_duplicates_button_state()
 
     def calc_mark_stats_folder(self):
         self_current_folder_items_tagged = self.current_folder_items_tagged
@@ -5679,12 +5742,12 @@ class Gui:
         sel_count=0
         self_item_full_path = self.item_full_path
 
-        dude_core_name_func = dude_core.name_func
-        path_param_abs = dude_core.name_func(normpath(abspath(path_param)).rstrip(sep))
+        dup_py_core_name_func = dup_py_core.name_func
+        path_param_abs = dup_py_core.name_func(normpath(abspath(path_param)).rstrip(sep))
 
         for crc_item in crc_range:
             for item in self.tree_children_sub[crc_item]:
-                fullpath = dude_core_name_func(self_item_full_path(item))
+                fullpath = dup_py_core_name_func(self_item_full_path(item))
 
                 if fullpath.startswith(path_param_abs + sep):
                     action(item,self.groups_tree)
@@ -5919,7 +5982,7 @@ class Gui:
 
     def item_full_path(self,item):
         kind,size,crc, (pathnr,path,file,ctime,dev,inode) = self.groups_tree_item_to_data[item]
-        return abspath(dude_core.get_full_path_scanned(pathnr,path,file))
+        return abspath(dup_py_core.get_full_path_scanned(pathnr,path,file))
 
     #@logwrapper
     def file_check_state(self,item):
@@ -6002,7 +6065,7 @@ class Gui:
 
         orglist=self.tree_children[self.groups_tree]
 
-        dude_core.hide_group_core(size,crc,tuples_to_hide,self_file_remove_callback,self_crc_remove_callback,self.operation_mode)
+        dup_py_core.hide_group_core(size,crc,tuples_to_hide,self_file_remove_callback,self_crc_remove_callback,self.operation_mode)
 
         self.data_precalc()
         self.reset_sels()
@@ -6100,7 +6163,7 @@ class Gui:
 
         self.status(STR('checking data consistency with filesystem state ...'))
 
-        dude_core_check_group_files_state = dude_core.check_group_files_state
+        dup_py_core_check_group_files_state = dup_py_core.check_group_files_state
 
         checkres_dict={}
         tuples_to_remove_dict={}
@@ -6114,13 +6177,13 @@ class Gui:
                 checkres_dict_any = False
 
                 try:
-                    #(checkres,tuples_to_remove)=dude_core_check_group_files_state(size,group,True)
-                    (checkres_dict[group],tuples_to_remove_dict[group])=dude_core_check_group_files_state(size,group,True)
+                    #(checkres,tuples_to_remove)=dup_py_core_check_group_files_state(size,group,True)
+                    (checkres_dict[group],tuples_to_remove_dict[group])=dup_py_core_check_group_files_state(size,group,True)
                     if checkres_dict[group]:
                         checkres_dict_any = True
 
                 except Exception as e:
-                    self.get_text_info_dialog().show('Error. dude_core_check_group_files_state error.',str(e) )
+                    self.get_text_info_dialog().show('Error. dup_py_core_check_group_files_state error.',str(e) )
                     return self.CHECK_ERR
 
             if checkres_dict_any:
@@ -6131,7 +6194,7 @@ class Gui:
 
                 for group in processed_items:
                     size = 0
-                    dude_core.remove_from_data_pool(size,group,tuples_to_remove_dict[group],self.file_remove_callback,self.crc_remove_callback)
+                    dup_py_core.remove_from_data_pool(size,group,tuples_to_remove_dict[group],self.file_remove_callback,self.crc_remove_callback)
 
                 self.data_precalc()
 
@@ -6174,7 +6237,7 @@ class Gui:
             if incorrect_groups:
                 if skip_incorrect:
 
-                    incorrect_group_str='\n'.join([group if show_full_crc else group[:dude_core.crc_cut_len] for group in incorrect_groups ])
+                    incorrect_group_str='\n'.join([group if show_full_crc else group[:dup_py_core.crc_cut_len] for group in incorrect_groups ])
                     header = STR('Warning !') + f'({NAME[action]}). {problem_header}'
                     message = STR("Option \"Skip groups with invalid selection\" is enabled.\n\nFollowing groups will NOT be processed and remain with markings:\n\n") + str(incorrect_group_str)
 
@@ -6207,13 +6270,13 @@ class Gui:
 
                 checkres_dict_any = False
                 try:
-                    #(checkres,tuples_to_remove)=dude_core_check_group_files_state(size,crc)
-                    (checkres_dict[crc],tuples_to_remove_dict[crc])=dude_core_check_group_files_state(size,crc)
+                    #(checkres,tuples_to_remove)=dup_py_core_check_group_files_state(size,crc)
+                    (checkres_dict[crc],tuples_to_remove_dict[crc])=dup_py_core_check_group_files_state(size,crc)
 
                     if checkres_dict[crc]:
                         checkres_dict_any = True
                 except Exception as e:
-                    self.get_text_info_dialog().show('Error. dude_core_check_group_files_state error.',str(e) )
+                    self.get_text_info_dialog().show('Error. dup_py_core_check_group_files_state error.',str(e) )
                     return self.CHECK_ERR
 
             if checkres_dict_any:
@@ -6225,7 +6288,7 @@ class Gui:
                 for crc in processed_items:
                     size = self.crc_to_size[crc]
 
-                    dude_core.remove_from_data_pool(size,crc,tuples_to_remove_dict[crc],self.file_remove_callback,self.crc_remove_callback)
+                    dup_py_core.remove_from_data_pool(size,crc,tuples_to_remove_dict[crc],self.file_remove_callback,self.crc_remove_callback)
 
                 self.data_precalc()
 
@@ -6268,7 +6331,7 @@ class Gui:
             if incorrect_groups:
                 if skip_incorrect:
 
-                    incorrect_group_str='\n'.join([crc if show_full_crc else crc[:dude_core.crc_cut_len] for crc in incorrect_groups ])
+                    incorrect_group_str='\n'.join([crc if show_full_crc else crc[:dup_py_core.crc_cut_len] for crc in incorrect_groups ])
                     header = STR('Warning !') + f' ({NAME[action]}). {problem_header}'
                     message = STR('Option "Skip groups with invalid selection" is enabled.\n\nFollowing groups will NOT be processed and remain with markings:') + f"\n\n{incorrect_group_str}"
 
@@ -6550,9 +6613,9 @@ class Gui:
         erase_empty_dirs=self.cfg_get_bool(CFG_ERASE_EMPTY_DIRS)
 
         self_groups_tree_item_to_data = self.groups_tree_item_to_data
-        dude_core_delete_file_wrapper = dude_core.delete_file_wrapper
+        dup_py_core_delete_file_wrapper = dup_py_core.delete_file_wrapper
 
-        dude_core_link_wrapper = dude_core.link_wrapper
+        dup_py_core_link_wrapper = dup_py_core.link_wrapper
 
         final_info=[]
 
@@ -6609,7 +6672,7 @@ class Gui:
 
                     dummy_size=''
 
-                    if resmsg:=dude_core_delete_file_wrapper(dummy_size,group,tuples_to_delete,to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule,True):
+                    if resmsg:=dup_py_core_delete_file_wrapper(dummy_size,group,tuples_to_delete,to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule,True):
                         resmsg_str='\n'.join(resmsg)
                         l_error(resmsg_str)
                         end_message_list_append(resmsg_str)
@@ -6642,7 +6705,7 @@ class Gui:
                             if path:
                                 directories_to_check_add( tuple( [pathnr] + path.strip(sep).split(sep) ) )
 
-                    if resmsg:=dude_core_delete_file_wrapper(size,crc,tuples_to_delete,to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule):
+                    if resmsg:=dup_py_core_delete_file_wrapper(size,crc,tuples_to_delete,to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule):
                         resmsg_str='\n'.join(resmsg)
                         l_error(resmsg_str)
                         end_message_list_append(resmsg_str)
@@ -6667,7 +6730,7 @@ class Gui:
                 removal_func = send2trash if self.cfg_get_bool(CFG_SEND_TO_TRASH) else rmdir
 
                 for dir_tuple in sorted(directories_to_check_expanded,key=len,reverse=True):
-                    real_path = normpath(abspath(dude_core.scanned_paths[dir_tuple[0]] + sep + sep.join(dir_tuple[1:])))
+                    real_path = normpath(abspath(dup_py_core.scanned_paths[dir_tuple[0]] + sep + sep.join(dir_tuple[1:])))
 
                     info = self.empty_dirs_removal_single(real_path,removal_func)
                     if info:
@@ -6694,7 +6757,7 @@ class Gui:
 
                 self.process_files_core_info1 = f'crc:{crc}'
 
-                if resmsg:=dude_core_link_wrapper(SOFTLINK, do_rel_symlink, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for item in items_dict.values() ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
+                if resmsg:=dup_py_core_link_wrapper(SOFTLINK, do_rel_symlink, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for item in items_dict.values() ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
                     l_error(resmsg)
 
                     end_message_list_append(resmsg)
@@ -6718,7 +6781,7 @@ class Gui:
                 self.process_files_core_info0 = f'size:{bytes_to_str(size)}'
                 self.process_files_core_info1 = f'crc:{crc}'
 
-                if resmsg:=dude_core_link_wrapper(WIN_LNK, False, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for item in items_dict.values() ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
+                if resmsg:=dup_py_core_link_wrapper(WIN_LNK, False, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for item in items_dict.values() ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
                     l_error(resmsg)
 
                     end_message_list_append(resmsg)
@@ -6741,7 +6804,7 @@ class Gui:
                 self.process_files_core_info0 = f'size:{bytes_to_str(size)}'
                 self.process_files_core_info1 = f'crc:{crc}'
 
-                if resmsg:=dude_core_link_wrapper(HARDLINK, False, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for index,item in items_dict.items() if index!=0 ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
+                if resmsg:=dup_py_core_link_wrapper(HARDLINK, False, size,crc, index_tuple_ref, [self_groups_tree_item_to_data[item][3] for index,item in items_dict.items() if index!=0 ],to_trash,self_file_remove_callback_schedule,self_crc_remove_callback_schedule ):
                     l_error(resmsg)
 
                     end_message_list_append(resmsg)
@@ -7081,10 +7144,10 @@ class Gui:
 
     @logwrapper
     def csv_save(self):
-        if csv_file := asksaveasfilename(parent=self.main,initialfile = 'DUDE_scan.csv',defaultextension=".csv",filetypes=[("All Files","*.*"),("CSV Files","*.csv")]):
+        if csv_file := asksaveasfilename(parent=self.main,initialfile = 'Dup_py_scan.csv',defaultextension=".csv",filetypes=[("All Files","*.*"),("CSV Files","*.csv")]):
 
             self.status('saving CSV file "%s" ...' % str(csv_file))
-            dude_core.write_csv(str(csv_file))
+            dup_py_core.write_csv(str(csv_file))
             self.status('CSV file saved: "%s"' % str(csv_file))
 
     @logwrapper
@@ -7180,7 +7243,7 @@ class Gui:
             for item in self.tree_children_sub[self.sel_item]:
                 pathnr=int(tree.set(item,'pathnr'))
                 item_path=tree.set(item,'path')
-                params.append(dude_core.scanned_paths[int(pathnr)]+item_path)
+                params.append(dup_py_core.scanned_paths[int(pathnr)]+item_path)
         elif self.sel_path_full:
             self.status(f'Opening: {self.sel_path_full}')
             params.append(self.sel_path_full)
@@ -7263,12 +7326,12 @@ if __name__ == "__main__":
         allocs, g1, g2 = gc_get_threshold()
         gc_set_threshold(100_000, g1*5, g2*10)
 
-        DUDE_FILE = normpath(__file__)
-        DUDE_DIR = dirname(DUDE_FILE)
+        DUP_PY_FILE = normpath(__file__)
+        DUP_PY_DIR = dirname(DUP_PY_FILE)
 
-        DUDE_EXECUTABLE_FILE = normpath(abspath(sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]))
-        DUDE_EXECUTABLE_DIR = dirname(DUDE_EXECUTABLE_FILE)
-        PORTABLE_DIR = sep.join([DUDE_EXECUTABLE_DIR,'dude.data'])
+        DUP_PY_EXECUTABLE_FILE = normpath(abspath(sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]))
+        DUP_PY_EXECUTABLE_DIR = dirname(DUP_PY_EXECUTABLE_FILE)
+        PORTABLE_DIR = sep.join([DUP_PY_EXECUTABLE_DIR,'dup_py.data'])
 
         #######################################################################
 
@@ -7290,9 +7353,9 @@ if __name__ == "__main__":
         if use_appdir:
             try:
                 from appdirs import user_cache_dir,user_log_dir,user_config_dir
-                CACHE_DIR_DIR = user_cache_dir('dude','PJDude-%s' % VER_TIMESTAMP)
-                LOG_DIR = user_log_dir('dude','PJDude')
-                CONFIG_DIR = user_config_dir('dude')
+                CACHE_DIR_DIR = user_cache_dir('dup_py','PJDude-%s' % VER_TIMESTAMP)
+                LOG_DIR = user_log_dir('dup_py','PJDude')
+                CONFIG_DIR = user_config_dir('dup_py')
             except Exception as e_import:
                 print(e_import)
 
@@ -7310,13 +7373,16 @@ if __name__ == "__main__":
 
         Path(LOG_DIR).mkdir(parents=True,exist_ok=True)
 
-        #print('DUDE_EXECUTABLE_FILE:',DUDE_EXECUTABLE_FILE,'\nDUDE_EXECUTABLE_DIR:',DUDE_EXECUTABLE_DIR,'\nPORTABLE_DIR:',PORTABLE_DIR)
+        setup_logging(
+            log,
+            debug=bool(getattr(p_args, 'debug', False)),
+            launcher=os_environ.get('DUP_PY_LAUNCHER'),
+        )
+
         print('log:',log)
 
-        logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s', filename=log,filemode='w')
-
-        l_info('DUDE %s',VER_TIMESTAMP)
-        l_info('executable: %s',DUDE_EXECUTABLE_FILE)
+        l_info('Dup_py %s',VER_TIMESTAMP)
+        l_info('executable: %s',DUP_PY_EXECUTABLE_FILE)
         #l_debug('DEBUG LEVEL ENABLED')
 
         from numpy import __version__ as numpy_version
@@ -7330,7 +7396,7 @@ if __name__ == "__main__":
 
 
         try:
-            distro_info=Path(path_join(DUDE_DIR,'distro.info.txt')).read_text()
+            distro_info=Path(path_join(DUP_PY_DIR,'distro.info.txt')).read_text()
         except Exception as exception_1:
             l_error(exception_1)
             distro_info = 'Error. No distro.info.txt file.'
@@ -7349,43 +7415,43 @@ if __name__ == "__main__":
 
         l_info('distro info:\n%s',distro_info)
 
-        dude_core = DudeCore(CACHE_DIR,logging)
+        dup_py_core = DupPyCore(CACHE_DIR,logging)
 
         if p_args.csv:
-            signal(SIGINT, lambda a, k : dude_core.handle_sigint())
+            signal(SIGINT, lambda a, k : dup_py_core.handle_sigint())
 
-            dude_core.set_paths_to_scan(p_args.paths)
+            dup_py_core.set_paths_to_scan(p_args.paths)
 
             if p_args.exclude:
-                set_exclude_masks_res=dude_core.set_exclude_masks(False,p_args.exclude)
+                set_exclude_masks_res=dup_py_core.set_exclude_masks(False,p_args.exclude)
             elif p_args.exclude_regexp:
-                set_exclude_masks_res=dude_core.set_exclude_masks(True,p_args.exclude_regexp)
+                set_exclude_masks_res=dup_py_core.set_exclude_masks(True,p_args.exclude_regexp)
             else:
-                set_exclude_masks_res=dude_core.set_exclude_masks(False,[])
+                set_exclude_masks_res=dup_py_core.set_exclude_masks(False,[])
 
             if set_exclude_masks_res:
                 print(set_exclude_masks_res)
                 sys.exit(2)
 
-            run_scan_thread=Thread(target=dude_core.scan,daemon=True)
+            run_scan_thread=Thread(target=dup_py_core.scan,daemon=True)
             run_scan_thread.start()
 
             while run_scan_thread.is_alive():
-                print('Scanning ...', dude_core.info_counter,end='\r')
+                print('Scanning ...', dup_py_core.info_counter,end='\r')
                 sleep(0.04)
 
             run_scan_thread.join()
 
-            run_crc_thread=Thread(target=dude_core.crc_calc,daemon=True)
+            run_crc_thread=Thread(target=dup_py_core.crc_calc,daemon=True)
             run_crc_thread.start()
 
             while run_crc_thread.is_alive():
-                print(f'crc_calc...{fnumber(dude_core.info_files_done)}/{fnumber(dude_core.info_total)}                 ',end='\r')
+                print(f'crc_calc...{fnumber(dup_py_core.info_files_done)}/{fnumber(dup_py_core.info_total)}                 ',end='\r')
                 sleep(0.04)
 
             run_crc_thread.join()
             print('')
-            dude_core.write_csv(p_args.csv[0])
+            dup_py_core.write_csv(p_args.csv[0])
             print('Done')
 
         else:

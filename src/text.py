@@ -1341,6 +1341,22 @@ class LANGUAGES:
             'it': 'Rimuovi file contrassegnati ...',
             'fr': 'Supprimer les fichiers marqués ...',
         },
+        'Remove duplicates': {
+            'pl': 'Usuń duplikaty',
+            'es': 'Eliminar duplicados',
+            'ru': 'Удалить дубликаты',
+            'de': 'Duplikate entfernen',
+            'it': 'Rimuovi duplicati',
+            'fr': 'Supprimer les doublons',
+        },
+        'TOOLTIP_REMOVE_DUPLICATES': {
+            'pl': 'Usuń zaznaczone kopie (jak Ctrl+Delete). Najpierw zaznacz pliki do usunięcia (Spacja lub menu oznaczania).',
+            'es': 'Eliminar copias marcadas (como Ctrl+Supr). Primero marque los archivos (Espacio o menú de marcado).',
+            'ru': 'Удалить отмеченные копии (как Ctrl+Delete). Сначала отметьте файлы (Пробел или меню меток).',
+            'de': 'Markierte Kopien entfernen (wie Strg+Entf). Zuerst Dateien markieren (Leertaste oder Markierungsmenü).',
+            'it': 'Rimuovi copie contrassegnate (come Ctrl+Canc). Prima contrassegnare i file (Spazio o menu segna).',
+            'fr': 'Supprimer les copies marquées (comme Ctrl+Suppr). Marquez d’abord les fichiers (Espace ou menu Marquer).',
+        },
         'Remove Marked Files in Subdirectory Tree ...': {
             'pl': 'Usuń zaznaczone pliki w poddrzewie katalogów ...',
             'es': 'Eliminar archivos marcados en el árbol de subdirectorios ...',
