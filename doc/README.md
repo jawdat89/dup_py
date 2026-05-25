@@ -1,6 +1,6 @@
 # Dup_py — local documentation
 
-Docs for this `C:\Dev\utilities\dude` install (**Dup_py**; entry `src/dup_py.py`, engine `DupPyCore`). Upstream: [PJDude/dude](https://github.com/PJDude/dude).
+Documentation for **Dup_py** (entry `src/dup_py.py`, engine `DupPyCore`). Upstream: [PJDude/dude](https://github.com/PJDude/dude).
 
 | Document | Description |
 |----------|-------------|

@@ -1,6 +1,6 @@
 # <img src="./src/icons/dude.png" width=30> Dup_py
 
-> **Local install (`C:\Dev`):** fork of [DUDE (DUplicates DEtector)](https://github.com/PJDude/dude), renamed **Dup_py**. See [doc/](doc/README.md) — [install](doc/install.md) (`run-dup_py64.bat`, logging), [architecture](doc/architecture.md), [codebase map](doc/codebase-map.md), [known limitations](doc/known-limitations.md).
+Fork of [DUDE (DUplicates DEtector)](https://github.com/PJDude/dude), renamed **Dup_py**. See [doc/](doc/README.md) — [install](doc/install.md), [architecture](doc/architecture.md), [codebase map](doc/codebase-map.md), [known limitations](doc/known-limitations.md).
 
 A cross-platform GUI utility for finding duplicated files, delete or link them to save space.
 

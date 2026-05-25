@@ -5,7 +5,7 @@ Exact module layout and **line regions** in the main source files (line numbers 
 ## Repository layout
 
 ```
-C:\Dev\utilities\dude\
+dup_py/
 ├── doc/                    # Local documentation (this folder)
 ├── scripts/                # Build: icons, version, PyInstaller, Nuitka
 ├── src/                    # All application Python source

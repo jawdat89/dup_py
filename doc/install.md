@@ -1,13 +1,12 @@
-# Local install (`C:\Dev\utilities\dude`)
+# Install and run
 
-**Dup_py** — local fork of DUDE; window title and about dialog use that name. Runtime data: **`dup_py.data`** (rename an existing `dude.data` folder if you want to keep cache/config).
+**Dup_py** — fork of DUDE; window title and about dialog use that name. Runtime data: **`dup_py.data`** (rename an existing `dude.data` folder if you want to keep cache/config).
 
-This copy is set up for development and daily use on Windows.
+## Quick start (Windows)
 
-## Quick start
+From the repository root:
 
 ```bat
-cd C:\Dev\utilities\dude
 run-dup_py.bat
 ```
 
