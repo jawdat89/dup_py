@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 set "SCRIPT=%~dp0src\dup_py.py"
 set "VENV_PY=%~dp0.venv\Scripts\python.exe"
-set "DUP_PY_LAUNCHER=run-dup_py.bat"
+set "DUP_PY_LAUNCHER=run-dup_py_cmd64.bat"
 
 if exist "%VENV_PY%" (
     "%VENV_PY%" -c "import struct,sys; sys.exit(0 if struct.calcsize('P')==8 else 1)" 1>nul 2>nul

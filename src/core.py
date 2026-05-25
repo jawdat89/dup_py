@@ -1475,7 +1475,7 @@ class DupPyCore:
     def write_csv(self,file_name):
         self.log.info('writing csv file: %s',file_name)
 
-        with open(file_name,'w') as csv_file:
+        with open(file_name,'w',encoding='utf-8',newline='') as csv_file:
             csv_file_write = csv_file.write
             csv_file_write('#size,crc,filepath\n#no checking if the path contains a comma\n')
             for size,crc_dict in self.files_of_size_of_crc_items():

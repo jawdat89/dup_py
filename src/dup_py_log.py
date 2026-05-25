@@ -89,3 +89,14 @@ def setup_logging(
 
 def get_logger(component: str):
     return logger.bind(component=component)
+
+
+def require_64bit_python() -> None:
+    """Exit if Python is not 64-bit (needed for large files and caches on Windows)."""
+    if sys.maxsize <= 2**32:
+        msg = (
+            'Dup_py requires 64-bit Python. '
+            'On Windows use run-dup_py64.bat or: py -3-64 src\\dup_py.py ...'
+        )
+        print(msg, file=sys.stderr)
+        sys.exit(1)

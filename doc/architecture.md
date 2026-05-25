@@ -59,16 +59,20 @@ flowchart TB
 
 ### 2. Headless CSV
 
-`dup_py.py --csv report.csv [paths]` (no window):
+`run-dup_py_cmd64.bat --csv report.csv [paths]` → `dup_py.py` with no GUI (`__main__` ~7461):
 
-1. `DupPyCore.set_paths_to_scan` / `set_exclude_masks`
-2. Thread: `scan()` — build size groups
-3. Thread: `crc_calc()` — SHA-1 duplicates
-4. `write_csv()`
+1. `require_64bit_python()` — exit on 32-bit Python
+2. `setup_logging` — loguru file under `dup_py.data/logs/` (or `-l`)
+3. `DupPyCore.set_paths_to_scan` / `set_exclude_masks`
+4. Thread: `scan(operation_mode, …)` — build size groups (CRC mode only for CSV)
+5. Thread: `crc_calc()` — SHA-1 duplicates
+6. `write_csv()` — UTF-8 CSV (`size,crc,filepath` rows)
+
+Progress is logged every ~2 s (`Scanning …`, `Hashing …`); milestones match GUI (`scan walk done`, `crc_calc done`).
 
 ### 3. Windows console wrapper
 
-`console.py` as `dup_py_cmd.exe` parses argv and spawns `dup_py.exe` with the same flags (keeps console open for `--help`).
+`console.py` as `dup_py_cmd.exe`: if `dup_py.exe` exists, spawns it with forwarded argv; otherwise runs **64-bit** `dup_py.py` from source (`.venv` or `py -3-64`).
 
 ## Scan pipeline (duplicate-by-hash mode)
 

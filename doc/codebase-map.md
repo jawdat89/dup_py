@@ -22,7 +22,8 @@ dup_py/
 │   └── test.py             # Synthetic tree generator (core self-test)
 ├── requirements.txt        # includes loguru
 ├── run-dup_py.bat            # Launcher → .venv
-├── run-dup_py64.bat          # Launcher → 64-bit .venv (preferred)
+├── run-dup_py64.bat          # GUI launcher → 64-bit .venv
+├── run-dup_py_cmd64.bat      # CLI / CSV launcher → 64-bit .venv
 └── README.md               # Upstream readme
 ```
 
@@ -88,7 +89,7 @@ dup_py/
 | 6031–6755 | **process files** | Confirmations, trash/delete/link, `process_files_core` |
 | 6756–7248 | utilities | CSV save, cache clean, clipboard, open file/folder, logs |
 | 7249–7260 | `show_homepage` | Open project URL |
-| 7261–7510 | **`__main__`** | `setup_logging`, `DupPyCore` init, CSV mode or `Gui()` |
+| 7377–7620 | **`__main__`** | `require_64bit_python`, `setup_logging`, portable `dup_py.data`, CSV CLI or `Gui()` |
 
 ### `Gui` functional regions (quick index)
 
@@ -110,15 +111,17 @@ Use these when jumping inside the 7k-line file:
 |--------|----------------|
 | `_InterceptHandler` | Forward stdlib `logging` records to loguru |
 | `setup_logging` | stderr + rotating file sinks; log Python bitness, launcher |
+| `require_64bit_python` | Exit if not 64-bit (large files / cache) |
 | `get_logger` | Optional `logger.bind(component=…)` (optional use) |
 
-## `src/console.py` (~120 lines)
+## `src/console.py` (~210 lines)
 
 | Lines | Region | Responsibility |
 |-------|--------|----------------|
 | 39–45 | `get_ver_timestamp` | Read `version.txt` |
 | 47–84 | `parse_args` | CLI flags (`--csv`, `--debug`, `--log`, `--exclude`, image modes, sizes) |
-| 86–146 | `__main__` | Windows: forward argv to `dup_py.exe` via `start` |
+| 86–130 | `_argv_from_args`, `_is_64bit_python` | Build argv; verify 64-bit launcher |
+| 132–210 | `__main__` | Spawn `dup_py.exe` or run 64-bit `dup_py.py` from source |
 
 ## `src/dialogs.py` (~531 lines)
 

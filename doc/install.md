@@ -16,10 +16,12 @@ run-dup_py.bat
 run-dup_py64.bat
 ```
 
-| Launcher | Python used |
-|----------|-------------|
-| `run-dup_py.bat` | `.venv\Scripts\python.exe` |
-| `run-dup_py64.bat` | `.venv` if 64-bit, else `py -3-64` (warns if venv deps missing) |
+| Launcher | Use |
+|----------|-----|
+| `run-dup_py.bat` / `run-dup_py64.bat` | GUI (64-bit `.venv` or `py -3-64`) |
+| `run-dup_py_cmd64.bat` | CLI / CSV mode (same 64-bit rules) |
+
+All launchers require **64-bit Python**. A direct `python src\dup_py.py` call on 32-bit Python exits with an error.
 
 Or directly:
 
@@ -29,8 +31,10 @@ Or directly:
 
 ## First-time setup
 
+Use **64-bit** Python for the venv:
+
 ```bat
-python -m venv .venv
+py -3-64 -m venv .venv
 .\.venv\Scripts\pip install -r requirements.txt
 .\scripts\icons.convert.bat
 .\scripts\version.gen.bat
@@ -42,7 +46,8 @@ python -m venv .venv
 
 Logging is configured in `src/dup_py_log.py`:
 
-- **File:** timestamped log under `dup_py.data/logs/` (or `-l path`)
+- **File:** timestamped log under `dup_py.data/logs/` (gitignored; next to the app or repo root when running `src/dup_py.py`)
+- **CLI `-l path`:** optional override for that run
 - **Console:** colorized stderr (same levels as file)
 - **Engine:** `DupPyCore` still uses stdlib `logging`; records are forwarded to loguru
 
@@ -60,12 +65,14 @@ Useful log lines after a scan:
 
 ## CLI examples
 
+Use **`run-dup_py_cmd64.bat`** (or `run-dup_py64.bat`) so scans run on 64-bit Python:
+
 ```bat
-run-dup_py64.bat .
-run-dup_py64.bat C:\folder1 D:\folder2
-run-dup_py64.bat --help
-run-dup_py64.bat --norun
-run-dup_py64.bat --csv report.csv C:\folder --exclude "*.git/*"
+run-dup_py_cmd64.bat .
+run-dup_py_cmd64.bat C:\folder1 D:\folder2
+run-dup_py_cmd64.bat --help
+run-dup_py_cmd64.bat --csv report.csv C:\folder --exclude "*.git/*"
+run-dup_py_cmd64.bat --debug --csv report.csv "D:\My Photos"
 ```
 
 | Flag | Purpose |
@@ -73,6 +80,23 @@ run-dup_py64.bat --csv report.csv C:\folder --exclude "*.git/*"
 | `--debug` | DEBUG level to console and log file |
 | `-l LOG` | Custom log file path |
 | `-ad` / `--appdirs` | Use platform app-data instead of portable `dup_py.data` |
+| `-c` / `--csv FILE` | Headless scan; write duplicate groups to CSV (UTF-8 paths) |
+
+### Example: scan a folder to CSV
+
+```bat
+run-dup_py_cmd64.bat --debug --csv dup_py.data\my_scan.csv "D:\Photos\Vacation"
+```
+
+Output:
+
+- **CSV:** `dup_py.data\my_scan.csv` — groups as `size,crc` rows plus file paths
+- **Log:** `dup_py.data\logs\YYYY_MM_DD_HH_MM_SS.txt`
+- **Cache:** `dup_py.data\cache-<version>\<hostname>\` (speeds up re-scans)
+
+## Mark one per group (toolbar)
+
+After a scan, click **Mark one per group** (enabled whenever groups are shown) to clear marks and mark the **oldest** file in each duplicate group — same as **Mark Oldest files** (Ctrl+O). Then use **Remove duplicates** or other actions.
 
 ## Remove duplicates (toolbar)
 
@@ -86,7 +110,7 @@ Same action as **Ctrl+Delete** or context menu **Remove Marked Files …** (all 
 
 ## Runtime data
 
-Logs, config, and cache default to `dup_py.data` next to the script, or platform app-data folders when that directory is not writable (`--appdirs`).
+Logs, config, and cache live in **`dup_py.data`** at the repository root when you run `src\dup_py.py` from a clone (folder is **gitignored**). Packaged builds use `dup_py.data` next to the executable. Use `--appdirs` if the portable folder is not writable.
 
 ## Layout
 
@@ -97,8 +121,9 @@ Logs, config, and cache default to `dup_py.data` next to the script, or platform
 | `src/dup_py_log.py` | loguru + logging bridge |
 | `src/console.py` | Argument parsing |
 | `.venv/` | Local Python environment (not committed) |
-| `run-dup_py.bat` | Launcher (venv) |
-| `run-dup_py64.bat` | Launcher (64-bit venv preferred) |
+| `run-dup_py.bat` | GUI launcher (64-bit) |
+| `run-dup_py64.bat` | GUI launcher (64-bit, explicit name) |
+| `run-dup_py_cmd64.bat` | CLI / CSV launcher (64-bit) |
 | `dup_py.data/` | Runtime logs, `cfg.ini`, cache (created at run time) |
 
 ## Updating from upstream

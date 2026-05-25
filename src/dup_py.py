@@ -57,7 +57,7 @@ from platform import node
 from os import sep,stat,scandir,readlink,rmdir,system,getcwd,name as os_name,environ as os_environ
 from gc import disable as gc_disable, enable as gc_enable,collect as gc_collect,set_threshold as gc_set_threshold, get_threshold as gc_get_threshold
 
-from os.path import abspath,normpath,dirname,join as path_join,isfile as path_isfile,split as path_split,exists as path_exists,isdir, splitext as path_splitext
+from os.path import abspath,normpath,dirname,basename,join as path_join,isfile as path_isfile,split as path_split,exists as path_exists,isdir, splitext as path_splitext
 
 from collections import deque
 from psutil import disk_partitions
@@ -81,7 +81,7 @@ from send2trash import send2trash
 from core import *
 import console
 from dialogs import *
-from dup_py_log import setup_logging
+from dup_py_log import setup_logging, require_64bit_python
 from text import LANGUAGES
 
 from dup_py_images import dup_py_image
@@ -91,6 +91,7 @@ from pypdf import PdfReader
 l_info = logging.info
 l_warning = logging.warning
 l_error = logging.error
+l_debug = logging.debug
 
 langs=LANGUAGES()
 STR=langs.STR
@@ -183,8 +184,16 @@ cfg_defaults={
     CFG_KEY_MARK_RE_1:False,
     CFG_KEY_SHOW_PREVIEW:True,
     CFG_LANG:'English',
-    CFG_RECENTS:''
+    CFG_RECENTS:'',
 }
+
+def portable_data_base_dir(dup_py_dir, executable_dir, frozen=False):
+    """Directory that contains dup_py.data (repo root when running src/dup_py.py)."""
+    if frozen:
+        return executable_dir
+    if basename(dup_py_dir) == 'src':
+        return dirname(dup_py_dir)
+    return executable_dir
 
 NAME={DELETE:'Delete',SOFTLINK:'Softlink',HARDLINK:'Hardlink',WIN_LNK:'.lnk file'}
 
@@ -2008,7 +2017,7 @@ class Gui:
                 (self.show_mode,CFG_KEY_SHOW_MODE),
                 (self.file_open_wrapper,CFG_KEY_WRAPPER_FILE),
                 (self.folders_open_wrapper,CFG_KEY_WRAPPER_FOLDERS),
-                (self.folders_open_wrapper_params,CFG_KEY_WRAPPER_FOLDERS_PARAMS)
+                (self.folders_open_wrapper_params,CFG_KEY_WRAPPER_FOLDERS_PARAMS),
             ]
 
             row = 0
@@ -7364,15 +7373,19 @@ class Gui:
 
 if __name__ == "__main__":
     try:
+        require_64bit_python()
+
         allocs, g1, g2 = gc_get_threshold()
         gc_set_threshold(100_000, g1*5, g2*10)
 
         DUP_PY_FILE = normpath(__file__)
         DUP_PY_DIR = dirname(DUP_PY_FILE)
 
-        DUP_PY_EXECUTABLE_FILE = normpath(abspath(sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]))
+        _frozen = bool(getattr(sys, 'frozen', False))
+        DUP_PY_EXECUTABLE_FILE = normpath(abspath(sys.executable if _frozen else sys.argv[0]))
         DUP_PY_EXECUTABLE_DIR = dirname(DUP_PY_EXECUTABLE_FILE)
-        PORTABLE_DIR = sep.join([DUP_PY_EXECUTABLE_DIR,'dup_py.data'])
+        PORTABLE_BASE = portable_data_base_dir(DUP_PY_DIR, DUP_PY_EXECUTABLE_DIR, _frozen)
+        PORTABLE_DIR = sep.join([PORTABLE_BASE,'dup_py.data'])
 
         #######################################################################
 
@@ -7388,7 +7401,7 @@ if __name__ == "__main__":
                 Path(PORTABLE_DIR_TEST).mkdir(parents=True,exist_ok=False)
                 rmdir(PORTABLE_DIR_TEST)
             except Exception as e_portable:
-                print('Cannot store files in portable mode:',e_portable)
+                l_warning('Cannot store files in portable mode: %s', e_portable)
                 use_appdir=True
 
         if use_appdir:
@@ -7398,7 +7411,7 @@ if __name__ == "__main__":
                 LOG_DIR = user_log_dir('dup_py','PJDude')
                 CONFIG_DIR = user_config_dir('dup_py')
             except Exception as e_import:
-                print(e_import)
+                l_error('%s', e_import)
 
         else:
             CACHE_DIR_DIR = sep.join([PORTABLE_DIR,"cache-%s" % VER_TIMESTAMP])
@@ -7408,11 +7421,11 @@ if __name__ == "__main__":
         #dont mix device id for different hosts in portable mode
         CACHE_DIR = sep.join([CACHE_DIR_DIR,node()])
 
-        log_file = strftime('%Y_%m_%d_%H_%M_%S',localtime_catched(time()) ) +'.txt'
-        log=abspath(p_args.log[0]) if p_args.log else LOG_DIR + sep + log_file
-        #LOG_LEVEL = logging.DEBUG if p_args.debug else logging.INFO
-
-        Path(LOG_DIR).mkdir(parents=True,exist_ok=True)
+        log_file = strftime('%Y_%m_%d_%H_%M_%S',localtime_catched(time())) + '.txt'
+        log = abspath(p_args.log[0]) if p_args.log else sep.join([LOG_DIR, log_file])
+        Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
+        if p_args.log:
+            Path(log).parent.mkdir(parents=True, exist_ok=True)
 
         setup_logging(
             log,
@@ -7420,7 +7433,7 @@ if __name__ == "__main__":
             launcher=os_environ.get('DUP_PY_LAUNCHER'),
         )
 
-        print('log:',log)
+        l_info('Log file: %s', log)
 
         l_info('Dup_py %s',VER_TIMESTAMP)
         l_info('executable: %s',DUP_PY_EXECUTABLE_FILE)
@@ -7471,29 +7484,91 @@ if __name__ == "__main__":
                 set_exclude_masks_res=dup_py_core.set_exclude_masks(False,[])
 
             if set_exclude_masks_res:
-                print(set_exclude_masks_res)
+                l_error('%s', set_exclude_masks_res)
                 sys.exit(2)
 
-            run_scan_thread=Thread(target=dup_py_core.scan,daemon=True)
+            if not p_args.paths:
+                l_error('CSV mode requires at least one path to scan.')
+                sys.exit(2)
+
+            images_mode = bool(p_args.images or p_args.ih or p_args.id or p_args.ir or p_args.imin or p_args.imax)
+            if p_args.igps:
+                operation_mode = MODE_GPS
+            elif images_mode:
+                operation_mode = MODE_SIMILARITY
+            else:
+                operation_mode = MODE_CRC
+
+            if operation_mode != MODE_CRC:
+                l_error('CSV export supports CRC (hash) mode only. Omit -i/-igps for duplicate-by-content scans.')
+                sys.exit(2)
+
+            file_min_size_int = 0
+            if p_args.sizemin:
+                file_min_size_int = str_to_bytes(p_args.sizemin[0])
+                if file_min_size_int == -1:
+                    l_error("cannot parse sizemin value:'%s'", p_args.sizemin[0])
+                    sys.exit(2)
+
+            file_max_size_int = 0
+            if p_args.sizemax:
+                file_max_size_int = str_to_bytes(p_args.sizemax[0])
+                if file_max_size_int == -1:
+                    l_error("cannot parse sizemax value:'%s'", p_args.sizemax[0])
+                    sys.exit(2)
+
+            dup_py_core.operation_mode = operation_mode
+
+            l_info('CLI CSV mode: paths=%s csv=%s', p_args.paths, p_args.csv[0])
+            l_info('Size filters: min=%s max=%s', file_min_size_int, file_max_size_int)
+
+            run_scan_thread=Thread(
+                target=lambda: dup_py_core.scan(operation_mode, file_min_size_int, file_max_size_int, False),
+                daemon=True,
+            )
             run_scan_thread.start()
 
+            scan_progress_at = time()
             while run_scan_thread.is_alive():
-                print('Scanning ...', dup_py_core.info_counter,end='\r')
+                now = time()
+                if now - scan_progress_at >= 2.0:
+                    l_info('Scanning ... %s entries seen', fnumber(dup_py_core.info_counter))
+                    scan_progress_at = now
                 sleep(0.04)
 
             run_scan_thread.join()
 
+            if dup_py_core.abort_action:
+                l_warning('Scan aborted.')
+                sys.exit(1)
+
+            l_info('Filesystem walk finished (%s entries seen)', fnumber(dup_py_core.info_counter))
+
             run_crc_thread=Thread(target=dup_py_core.crc_calc,daemon=True)
             run_crc_thread.start()
 
+            crc_progress_at = time()
             while run_crc_thread.is_alive():
-                print(f'crc_calc...{fnumber(dup_py_core.info_files_done)}/{fnumber(dup_py_core.info_total)}                 ',end='\r')
+                now = time()
+                if now - crc_progress_at >= 2.0:
+                    l_info(
+                        'Hashing ... %s / %s',
+                        fnumber(dup_py_core.info_files_done),
+                        fnumber(dup_py_core.info_total),
+                    )
+                    crc_progress_at = now
                 sleep(0.04)
 
             run_crc_thread.join()
-            print('')
+
+            l_info(
+                'Hashing finished: %s / %s files, %s duplicate groups',
+                fnumber(dup_py_core.info_files_done),
+                fnumber(dup_py_core.info_total),
+                fnumber(dup_py_core.info_found_groups),
+            )
             dup_py_core.write_csv(p_args.csv[0])
-            print('Done')
+            l_info('CSV written: %s', abspath(p_args.csv[0]))
 
         else:
             images_mode = bool(p_args.images or p_args.ih or p_args.id or p_args.ir or p_args.imin or p_args.imax)
@@ -7533,7 +7608,7 @@ if __name__ == "__main__":
             if p_args.sizemin:
                 size_min_cand = str_to_bytes(p_args.sizemin[0])
                 if size_min_cand == -1:
-                    print(f"cannot parse sizemin value:'{p_args.sizemin[0]}'")
+                    l_error("cannot parse sizemin value:'%s'", p_args.sizemin[0])
                     sys.exit(2)
                 else:
                     size_min=p_args.sizemin[0]
@@ -7542,7 +7617,7 @@ if __name__ == "__main__":
             if p_args.sizemax:
                 size_max_cand = str_to_bytes(p_args.sizemax[0])
                 if size_max_cand == -1:
-                    print(f"cannot parse sizemax value:'{p_args.sizemax[0]}'")
+                    l_error("cannot parse sizemax value:'%s'", p_args.sizemax[0])
                     sys.exit(2)
                 else:
                     size_max=p_args.sizemax[0]
@@ -7550,6 +7625,5 @@ if __name__ == "__main__":
             Gui( getcwd(),p_args.paths,p_args.exclude,p_args.exclude_regexp,p_args.norun,images_mode_tuple,size_min,size_max )
 
     except Exception as e_main:
-        print(e_main)
-        l_error(e_main)
+        l_error('%s', e_main)
         sys.exit(1)

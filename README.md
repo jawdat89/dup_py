@@ -60,23 +60,25 @@ Portable executable packages created with [PyInstaller](https://pyinstaller.org/
 - Linux
 - Windows (10,11)
 
-## Command line examples:
-* Start scanning for duplicates in current directory:
+## Command line (Windows, 64-bit)
+
+Use **`run-dup_py_cmd64.bat`** from the repo root (or `dup_py.exe` / `dup_py_cmd.exe` from a release build). See [doc/install.md](doc/install.md).
+
+* GUI, scan current directory:
+```bat
+run-dup_py64.bat .
 ```
-dude .
+* Headless duplicate report (CSV):
+```bat
+run-dup_py_cmd64.bat --csv report.csv D:\folder1 "D:\folder with spaces"
 ```
-* Start scanning in specified directories:
+* With logging and excludes:
+```bat
+run-dup_py_cmd64.bat --debug --csv report.csv --exclude "*.git/*" C:\Photos
 ```
-dude c:\order d:\mess
-```
-* Generate csv with report, exclude some paths:
-```
-dude ~ --exclude "*.git/*" --csv result.csv ; note the quotation marks on asterisks
-dup_py.exe c:\ --exclude *windows* --csv result.csv
-```
-* check full set of available parameters:
-```
-dude --help
+* Help:
+```bat
+run-dup_py_cmd64.bat --help
 ```
 ## False positives issue
 [Reference to potential problems with Windows Defender and other antivirus programs](https://github.com/PJDude/dude/discussions/9).

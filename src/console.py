@@ -30,7 +30,7 @@ import argparse
 import os
 import signal
 #from sys import exit
-from subprocess import DEVNULL
+from subprocess import DEVNULL, call
 import pathlib
 import sys
 
@@ -82,6 +82,54 @@ def parse_args(ver):
     help_parts=[parser_help[0]] + parser_help[7::]
 
     return parser.parse_args()
+
+def _is_64bit_python(exe, prefix=()):
+    try:
+        return call(
+            [exe, *prefix, '-c', 'import struct,sys; sys.exit(0 if struct.calcsize("P")==8 else 1)'],
+            stdout=DEVNULL,
+            stderr=DEVNULL,
+        ) == 0
+    except Exception:
+        return False
+
+def _argv_from_args(args):
+    argv = []
+    if args.norun:
+        argv.append('--norun')
+    if args.exclude:
+        argv.extend(['--exclude', *args.exclude])
+    if args.exclude_regexp:
+        argv.extend(['--exclude-regexp', *args.exclude_regexp])
+    if args.log:
+        argv.extend(['--log', args.log[0]])
+    if args.debug:
+        argv.append('--debug')
+    if args.csv:
+        argv.extend(['--csv', args.csv[0]])
+    if args.images or args.ih or args.id or args.ir:
+        argv.append('--images')
+    if args.ih:
+        argv.extend(['-ih', args.ih[0]])
+    if args.id:
+        argv.extend(['-id', args.id[0]])
+    if args.ir:
+        argv.append('-ir')
+    if args.imin:
+        argv.extend(['-imin', str(args.imin[0])])
+    if args.imax:
+        argv.extend(['-imax', str(args.imax[0])])
+    if args.igps:
+        argv.append('-igps')
+    if args.sizemin:
+        argv.extend(['-sizemin', args.sizemin[0]])
+    if args.sizemax:
+        argv.extend(['-sizemax', args.sizemax[0]])
+    if args.appdirs:
+        argv.append('--appdirs')
+    if args.paths:
+        argv.extend(args.paths)
+    return argv
 
 #windows console wrapper
 if __name__ == "__main__":
@@ -143,5 +191,25 @@ if __name__ == "__main__":
             print(e_gui)
             sys.exit()
     else:
-        print(f'Cannot find {GUI_MAIN_WIN_APP_NAME}')
-        sys.exit()
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dup_py_script = os.path.join(script_dir, 'dup_py.py')
+        repo_root = os.path.dirname(script_dir) if os.path.basename(script_dir) == 'src' else script_dir
+        venv_py = os.path.join(repo_root, '.venv', 'Scripts', 'python.exe')
+        candidates = []
+        if os.path.isfile(venv_py):
+            candidates.append(venv_py)
+        if os.name == 'nt':
+            candidates.append('py -3-64')
+        candidates.append(sys.executable)
+        argv = _argv_from_args(args)
+        for cand in candidates:
+            if ' ' in cand:
+                parts = cand.split()
+                exe, prefix = parts[0], parts[1:]
+            else:
+                exe, prefix = cand, []
+            if not _is_64bit_python(exe, prefix):
+                continue
+            sys.exit(call([exe, *prefix, dup_py_script, *argv]))
+        print('Cannot find 64-bit Python or dup_py.exe. Use run-dup_py_cmd64.bat from the repo root.')
+        sys.exit(1)
