@@ -147,6 +147,7 @@ dudecmd.exe
 dudegui.exe
 
 version.txt
+src/distro.info.txt
 
 images.py
 src/dup_py_images.py

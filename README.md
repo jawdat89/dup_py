@@ -6,7 +6,9 @@ A cross-platform GUI utility for finding duplicated files, delete or link them t
 
 ## Features:
 - Scanning for duplicate files in **multiple designated folders** (up to 8). Optional **"Cross paths"** display mode
+- **Settings** to include hidden files and **ignore `.ini` files** during scan (default: skip `.ini`)
 - Optional **command line parameters** to start scanning immediately or integrate **Dup_py** with your favorite file manager
+- **Headless CSV export** via `run-dup_py_cmd64.bat --csv` (64-bit Python, UTF-8 paths, loguru logging)
 - Two **synchronized** panels:
   - groups of duplicates
   - directory of selected file

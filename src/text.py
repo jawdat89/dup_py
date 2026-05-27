@@ -829,6 +829,22 @@ class LANGUAGES:
             'it': "Includi file/cartelle nascosti nella scansione",
             'fr': "Inclure les fichiers/dossiers cachés dans l'analyse",
         },
+        'Ignore .ini files in scan': {
+            'pl': 'Pomijaj pliki .ini podczas skanowania',
+            'es': 'Ignorar archivos .ini en el análisis',
+            'ru': 'Не сканировать файлы .ini',
+            'de': '.ini-Dateien beim Scan ignorieren',
+            'it': 'Ignora file .ini nella scansione',
+            'fr': 'Ignorer les fichiers .ini lors de l’analyse',
+        },
+        'TOOLTIP_SKIP_INI': {
+            'pl': 'Pomiń desktop.ini i inne pliki z rozszerzeniem .ini (np. Thumbs.db nie jest .ini).',
+            'es': 'Omitir desktop.ini y otros archivos .ini en la búsqueda de duplicados.',
+            'ru': 'Пропускать desktop.ini и другие файлы с расширением .ini.',
+            'de': 'desktop.ini und andere .ini-Dateien bei der Duplikatsuche überspringen.',
+            'it': 'Salta desktop.ini e altri file .ini nella ricerca duplicati.',
+            'fr': 'Ignorer desktop.ini et les autres fichiers .ini lors de la recherche de doublons.',
+        },
         'Information': {
             'pl': 'Informacja',
             'es': 'Información',

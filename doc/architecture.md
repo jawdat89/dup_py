@@ -81,7 +81,7 @@ This is the default **CRC mode** (`MODE_CRC = 0`).
 | Phase | Where | What happens |
 |-------|--------|----------------|
 | **1. Configure** | `Gui.scan()` ~4187 | Read paths, excludes, size filters; `dup_py_core.reset()` |
-| **2. Filesystem walk** | `DupPyCore.scan()` ~346 | `os.scandir` over up to 8 roots; skip symlinks to dirs, hidden, excludes, hardlinks (`st_nlink>1`); optional min/max file size |
+| **2. Filesystem walk** | `DupPyCore.scan()` ~346 | `os.scandir` over up to 8 roots; skip symlinks to dirs, hidden, excludes, `.ini` (if `skip_ini`), hardlinks (`st_nlink>1`); optional min/max file size |
 | **3. Size grouping** | `scan()` | Each file → `scan_results_by_size[size]` as `(pathnr, path, file_name, mtime, ctime, dev, inode)` |
 | **4. Hash** | `crc_calc()` ~1118 | One `CRCThreadedCalc` thread pool entry **per device** (`dev`); SHA-1 content hash; cache hit on `(inode, mtime)` |
 | **5. Duplicate groups** | `crc_calc()` | `files_of_size_of_crc[size][crc]` → sets of file tuples sharing hash |

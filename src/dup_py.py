@@ -100,6 +100,7 @@ STR=langs.STR
 
 CFG_THEME='theme'
 CFG_KEY_include_hidden = 'include_hidden'
+CFG_KEY_SKIP_INI = 'skip_ini'
 CFG_KEY_FULL_CRC='show_full_crc'
 CFG_KEY_SHOW_TOOLTIPS_INFO='show_tooltips_info'
 CFG_KEY_SHOW_TOOLTIPS_HELP='show_tooltips_help'
@@ -150,6 +151,7 @@ CFG_RECENTS = 'recents'
 cfg_defaults={
     CFG_THEME:'Vista' if windows else 'Clam',
     CFG_KEY_include_hidden:False,
+    CFG_KEY_SKIP_INI:True,
     CFG_KEY_FULL_CRC:False,
     CFG_KEY_SHOW_TOOLTIPS_INFO:True,
     CFG_KEY_SHOW_TOOLTIPS_HELP:True,
@@ -187,6 +189,20 @@ cfg_defaults={
     CFG_RECENTS:'',
 }
 
+def read_config_bool(config_dir, key, default=False, section='main'):
+    from configparser import ConfigParser
+
+    cfg_path = Path(config_dir) / 'cfg.ini'
+    if not cfg_path.is_file():
+        return default
+    cp = ConfigParser()
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as configfile:
+            cp.read_file(configfile)
+        return cp.get(section, key) == '1'
+    except Exception:
+        return default
+
 def portable_data_base_dir(dup_py_dir, executable_dir, frozen=False):
     """Directory that contains dup_py.data (repo root when running src/dup_py.py)."""
     if frozen:
@@ -194,6 +210,16 @@ def portable_data_base_dir(dup_py_dir, executable_dir, frozen=False):
     if basename(dup_py_dir) == 'src':
         return dirname(dup_py_dir)
     return executable_dir
+
+def load_distro_info_text(*search_dirs):
+    """Read build-time distro.info.txt, or synthesize for source runs."""
+    for directory in search_dirs:
+        if not directory:
+            continue
+        distro_path = Path(directory) / 'distro.info.txt'
+        if distro_path.is_file():
+            return distro_path.read_text(encoding='utf-8', errors='replace').strip()
+    return f'Python {sys.version}\n(source - run scripts/version.gen.* or pyinstaller to create distro.info.txt)'
 
 NAME={DELETE:'Delete',SOFTLINK:'Softlink',HARDLINK:'Hardlink',WIN_LNK:'.lnk file'}
 
@@ -1967,6 +1993,7 @@ class Gui:
 
             self.theme = StringVar()
             self.scan_hidden_var = BooleanVar()
+            self.skip_ini_var = BooleanVar()
             self.show_full_crc = BooleanVar()
             self.show_tooltips_info = BooleanVar()
             self.show_tooltips_help = BooleanVar()
@@ -1995,6 +2022,7 @@ class Gui:
 
             self.settings = [
                 (self.scan_hidden_var,CFG_KEY_include_hidden),
+                (self.skip_ini_var,CFG_KEY_SKIP_INI),
                 (self.show_full_crc,CFG_KEY_FULL_CRC),
                 (self.show_tooltips_info,CFG_KEY_SHOW_TOOLTIPS_INFO),
                 (self.show_tooltips_help,CFG_KEY_SHOW_TOOLTIPS_HELP),
@@ -2057,6 +2085,9 @@ class Gui:
             label_frame.grid(row=row,column=0,sticky='wens',padx=3,pady=3) ; row+=1
 
             (cb_1:=Checkbutton(label_frame, text = ' ' + STR('Include hidden files / folders in scan'), variable=self.scan_hidden_var)).grid(row=0,column=0,sticky='wens',padx=3,pady=2)
+
+            (cb_skip_ini:=Checkbutton(label_frame, text = ' ' + STR('Ignore .ini files in scan'), variable=self.skip_ini_var)).grid(row=1,column=0,sticky='wens',padx=3,pady=2)
+            self_widget_tooltip(cb_skip_ini,STR('TOOLTIP_SKIP_INI'))
 
             label_frame=LabelFrame(self.settings_dialog.area_main, text=STR("Main panels and dialogs"),borderwidth=2,bg=self.bg_color)
             label_frame.grid(row=row,column=0,sticky='wens',padx=3,pady=3) ; row+=1
@@ -4376,10 +4407,11 @@ class Gui:
 
         #################
         include_hidden = self.cfg_get_bool(CFG_KEY_include_hidden)
+        skip_ini = self.cfg_get_bool(CFG_KEY_SKIP_INI)
 
         #################
 
-        scan_thread=Thread(target=lambda : dup_py_core.scan(operation_mode,file_min_size_int,file_max_size_int,include_hidden),daemon=True)
+        scan_thread=Thread(target=lambda : dup_py_core.scan(operation_mode,file_min_size_int,file_max_size_int,include_hidden,skip_ini),daemon=True)
         scan_thread.start()
 
         self_progress_dialog_on_scan.lab_l1.configure(text=STR('Total space:'))
@@ -4892,6 +4924,9 @@ class Gui:
 
         if self.cfg_get_bool(CFG_KEY_include_hidden)!=self.scan_hidden_var.get():
             self.cfg.set_bool(CFG_KEY_include_hidden,self.scan_hidden_var.get())
+
+        if self.cfg_get_bool(CFG_KEY_SKIP_INI)!=self.skip_ini_var.get():
+            self.cfg.set_bool(CFG_KEY_SKIP_INI,self.skip_ini_var.get())
 
         if self.cfg_get_bool(CFG_KEY_FULL_CRC)!=self.show_full_crc.get():
             self.cfg.set_bool(CFG_KEY_FULL_CRC,self.show_full_crc.get())
@@ -7449,11 +7484,9 @@ if __name__ == "__main__":
         from pi_heif import __version__ as pi_heif_version
 
 
-        try:
-            distro_info=Path(path_join(DUP_PY_DIR,'distro.info.txt')).read_text()
-        except Exception as exception_1:
-            l_error(exception_1)
-            distro_info = 'Error. No distro.info.txt file.'
+        distro_info = load_distro_info_text(DUP_PY_DIR, DUP_PY_EXECUTABLE_DIR)
+        if not Path(path_join(DUP_PY_DIR, 'distro.info.txt')).is_file() and not Path(path_join(DUP_PY_EXECUTABLE_DIR, 'distro.info.txt')).is_file():
+            l_debug('distro.info.txt not found; using runtime Python version string')
 
         distro_info+= \
              "\nnumpy        " + str(numpy_version) + \
@@ -7519,11 +7552,13 @@ if __name__ == "__main__":
 
             dup_py_core.operation_mode = operation_mode
 
+            skip_ini = read_config_bool(CONFIG_DIR, CFG_KEY_SKIP_INI, True)
+
             l_info('CLI CSV mode: paths=%s csv=%s', p_args.paths, p_args.csv[0])
-            l_info('Size filters: min=%s max=%s', file_min_size_int, file_max_size_int)
+            l_info('Size filters: min=%s max=%s skip_ini=%s', file_min_size_int, file_max_size_int, skip_ini)
 
             run_scan_thread=Thread(
-                target=lambda: dup_py_core.scan(operation_mode, file_min_size_int, file_max_size_int, False),
+                target=lambda: dup_py_core.scan(operation_mode, file_min_size_int, file_max_size_int, False, skip_ini),
                 daemon=True,
             )
             run_scan_thread.start()

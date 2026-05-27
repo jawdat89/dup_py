@@ -24,6 +24,8 @@ Documentation for **Dup_py** (entry `src/dup_py.py`, engine `DupPyCore`). Upstre
 | **Rename** | User-facing name **Dup_py**; portable data folder **dup_py.data** (was `dude.data`) |
 | **Image scan** | PIL `MAX_IMAGE_PIXELS` disabled for similarity/GPS scans (logged warning) |
 | **Scan logs** | `scan walk done` / `crc_calc done` summary lines in log file |
+| **Skip .ini** | Settings checkbox **Ignore .ini files in scan** (default on); CLI respects `cfg.ini` |
+| **distro.info.txt** | Optional build file; missing file no longer logs ERROR (runtime fallback + `version.gen.*`) |
 
 ## Source at a glance
 

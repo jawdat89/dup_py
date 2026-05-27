@@ -42,6 +42,19 @@ py -3-64 -m venv .venv
 
 `requirements.txt` includes **loguru** for structured logging.
 
+`version.gen.bat` also writes `src/distro.info.txt` (build metadata for the About / startup log; optional for source runs).
+
+## Scan options (Settings)
+
+Open **Settings** → **Scan options**:
+
+| Option | Default | Purpose |
+|--------|---------|---------|
+| **Include hidden files / folders in scan** | off | Scan hidden files and folders |
+| **Ignore .ini files in scan** | on | Skip `desktop.ini` and other `.ini` files (stored as `skip_ini` in `cfg.ini`) |
+
+CLI / CSV mode reads `skip_ini` from the same `cfg.ini` in `dup_py.data`.
+
 ## Logging
 
 Logging is configured in `src/dup_py_log.py`:

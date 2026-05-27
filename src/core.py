@@ -347,7 +347,7 @@ class DupPyCore:
         return None
 
     scan_update_info_path_nr=None
-    def scan(self,operation_mode,file_min_size_int=0,file_max_size_int=0,include_hidden=False):
+    def scan(self,operation_mode,file_min_size_int=0,file_max_size_int=0,include_hidden=False,skip_ini=False):
         from PIL.Image import open as image_open
 
         if operation_mode in (MODE_SIMILARITY, MODE_GPS):
@@ -362,6 +362,7 @@ class DupPyCore:
         self.log.info('paths to scan: %s',' '.join(self.paths_to_scan))
         self.log.info('exclude_reg_exp: %s',self.reg_exp)
         self.log.info('exclude_list: %s',' '.join(self.exclude_list))
+        self.log.info('skip_ini: %s', skip_ini)
 
         self.info_path_nr=0
         self.info_path_to_scan=''
@@ -586,6 +587,9 @@ class DupPyCore:
                                             if nlink>1:
                                                 skipping_action('scan skipp - hardlinks %s - %s,%s,%s',nlink,path_nr,path,entry.name)
                                             else:
+                                                if skip_ini and Path(entry).suffix.lower() == '.ini':
+                                                    skipping_action('skipping .ini: %s', fullpath)
+                                                    continue
                                                 if size:=stat_res.st_size:
                                                     folder_size+=size
 
